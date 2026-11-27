@@ -10,6 +10,7 @@ from app.api.household import router as household_router
 from app.api.impact import router as impact_router
 from app.api.locations import router as locations_router
 from app.api.plan import router as plan_router
+from app.api.reports import router as reports_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(health_router)
@@ -20,6 +21,7 @@ api_v1_router.include_router(plan_router)
 api_v1_router.include_router(home_air_router)
 api_v1_router.include_router(chat_router)
 api_v1_router.include_router(impact_router)
+api_v1_router.include_router(reports_router)
 
 
 @api_v1_router.api_route(
