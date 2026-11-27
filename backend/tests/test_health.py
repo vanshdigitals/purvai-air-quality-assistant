@@ -12,6 +12,7 @@ def test_health_local_mode(local_client: TestClient) -> None:
     assert body["app"] == "purvai"
     assert body["version"] == "0.1.0"
     assert body["mode"] == "local"
+    assert body["ai_available"] is False
     assert body["database"] == {
         "status": "ok",
         "storage": "persistent",

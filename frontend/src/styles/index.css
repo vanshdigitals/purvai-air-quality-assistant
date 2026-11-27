@@ -232,6 +232,23 @@
   background-color: var(--ghost-pressed);
 }
 
+.purvai-btn-danger {
+  background-color: var(--danger);
+  color: #ffffff;
+}
+
+.purvai-btn-danger-subtle {
+  background-color: var(--danger-tint);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-btn-danger-subtle:hover:not(:disabled) {
+    opacity: 0.92;
+  }
+}
+
 .purvai-choice-card {
   display: flex;
   align-items: center;

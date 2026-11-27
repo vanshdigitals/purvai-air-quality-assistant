@@ -30,15 +30,15 @@ class Settings(BaseSettings):
 
     data_gov_in_api_key: SecretStr | None = None
     ai_provider: str = "gemini"
-    ai_model: str | None = None
+    ai_model: str = "gemini-3.5-flash-lite"
     ai_fallback_provider: str = "groq"
     ai_fallback_model: str = "openai/gpt-oss-20b"
+    ai_timeout_s: float = Field(default=15.0, ge=5.0, le=30.0)
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
 
     @field_validator(
         "database_path",
-        "ai_model",
         "data_gov_in_api_key",
         "gemini_api_key",
         "groq_api_key",
@@ -49,6 +49,13 @@ class Settings(BaseSettings):
         if isinstance(value, str) and value.strip() == "":
             return None
         return value
+
+    @field_validator("ai_model", mode="before")
+    @classmethod
+    def _default_ai_model(cls, value: object) -> str:
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            return "gemini-3.5-flash-lite"
+        return str(value).strip()
 
     @property
     def resolved_database_path(self) -> Path:

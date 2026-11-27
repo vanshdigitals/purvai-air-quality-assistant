@@ -25,6 +25,7 @@ class HealthResponse(BaseModel):
     app: str
     version: str
     mode: str
+    ai_available: bool
     database: DatabaseHealth
     time: str
 
@@ -38,12 +39,14 @@ async def get_health(request: Request) -> JSONResponse:
     db_ok = bool(getattr(request.app.state, "db_healthy", False)) and run_quick_check(engine)
     schema_rev = get_schema_revision(engine)
     storage = "persistent" if settings.purvai_mode == "local" else "temporary"
+    ai_available = bool(settings.gemini_api_key or settings.groq_api_key)
 
     body = HealthResponse(
         status="ok" if db_ok else "degraded",
         app="purvai",
         version="0.1.0",
         mode=settings.purvai_mode,
+        ai_available=ai_available,
         database=DatabaseHealth(
             status="ok" if db_ok else "error",
             storage=storage,

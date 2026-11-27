@@ -224,4 +224,128 @@ describe("PlanPage and HomeAirPage", () => {
     expect(await screen.findByText("16:30 IST")).toBeInTheDocument();
     expect(screen.getByText("Wet-mop floors instead of dry sweeping.")).toBeInTheDocument();
   });
+
+  it("renders Plan AI wording summary, item tags, and passes rebuild:true on Rebuild", async () => {
+    const user = userEvent.setup();
+    const planBodies: string[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/household")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: "hh-1",
+              mode: "local",
+              updated_at: "2026-11-27T10:00:00Z",
+              members: [{ kind: "adult", count: 1 }],
+              location: { label: "Noida", lat: 28.62, lon: 77.37 },
+              settings: {
+                theme: "system",
+                commute_mode: "metro",
+                ai_enabled: true,
+                save_chat: false,
+                reduce_motion: false,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+      if (url.endsWith("/plan")) {
+        planBodies.push(String(init?.body ?? ""));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              plan_date: "2026-11-27",
+              day: "today",
+              generated_by: "gemini",
+              generated_at: "2026-11-27T04:00:00Z",
+              source_label: "Measured",
+              summary: "Stay indoors during severe peaks today.",
+              note: null,
+              periods: [
+                {
+                  period: "morning",
+                  start: "06:00",
+                  end: "12:00",
+                  level: "severe",
+                  aqi: 410,
+                  past: false,
+                  items: [
+                    {
+                      action_id: "stay_indoors",
+                      text: "Keep family indoors today",
+                      why: "AQI is 410.",
+                      tag: "ai_wording",
+                    },
+                  ],
+                },
+                {
+                  period: "afternoon",
+                  start: "12:00",
+                  end: "17:00",
+                  level: "poor",
+                  aqi: 250,
+                  past: false,
+                  items: [
+                    { action_id: "exercise_indoors", text: "Move exercise indoors.", tag: "rule" },
+                  ],
+                },
+                {
+                  period: "evening",
+                  start: "17:00",
+                  end: "21:00",
+                  level: "very_poor",
+                  aqi: 330,
+                  past: false,
+                  items: [
+                    {
+                      action_id: "n95_if_out",
+                      text: "Wear a well-fitted N95 if you go out.",
+                      tag: "rule",
+                    },
+                  ],
+                },
+                {
+                  period: "night",
+                  start: "21:00",
+                  end: "06:00",
+                  level: "very_poor",
+                  aqi: 340,
+                  past: false,
+                  items: [
+                    {
+                      action_id: "no_outdoor_exercise",
+                      text: "Avoid outdoor exercise.",
+                      tag: "rule",
+                    },
+                  ],
+                },
+              ],
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 404 }));
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PlanPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("Stay indoors during severe peaks today.")).toBeInTheDocument();
+    expect(screen.getByText("Keep family indoors today")).toBeInTheDocument();
+    expect(screen.getByText("AQI is 410.")).toBeInTheDocument();
+    expect(screen.getAllByText("AI wording").length).toBeGreaterThanOrEqual(2);
+
+    await user.click(screen.getByRole("button", { name: "Rebuild" }));
+    expect(planBodies.some((b) => b.includes('"rebuild":true'))).toBe(true);
+  });
 });

@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "verdict_level": "severe",
+  "answer": "Not today. PM2.5 is high at 312 AQI for your household, so stay indoors and keep the purifier running.",
+  "data_cited": ["aqi", "category", "pollutant", "source"],
+  "recommendations": [
+    {
+      "action_id": "stay_indoors",
+      "title": "Keep outdoor play paused today",
+      "why": "Air is Severe for your household at 312 AQI.",
+      "tag": "ai_wording"
+    },
+    {
+      "action_id": "purifier_on",
+      "title": "Run the air purifier indoors",
+      "why": "Keep doors and windows closed while PM2.5 is elevated.",
+      "tag": "ai_wording"
+    },
+    {
+      "action_id": "n95_if_out",
+      "title": "Wear a well-fitted N95 if going out",
+      "why": "A tight seal reduces fine particle breathing outdoors.",
+      "tag": "ai_wording"
+    }
+  ],
+  "needs_doctor_note": false,
+  "out_of_scope": false
+}

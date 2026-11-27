@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertCircle, ChevronDown, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertCircle, ChevronDown, Info, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 
@@ -27,12 +27,13 @@ export default function PlanPage() {
   });
 
   const planMutation = useMutation({
-    mutationFn: (targetDay: PlanDay) => buildPlan(targetDay),
+    mutationFn: ({ targetDay, force }: { targetDay: PlanDay; force: boolean }) =>
+      buildPlan(targetDay, force),
   });
 
   useEffect(() => {
     if (householdQuery.data) {
-      planMutation.mutate(day);
+      planMutation.mutate({ targetDay: day, force: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, householdQuery.data?.id]);
@@ -104,7 +105,7 @@ export default function PlanPage() {
         <button
           type="button"
           disabled={planMutation.isPending}
-          onClick={() => planMutation.mutate(day)}
+          onClick={() => planMutation.mutate({ targetDay: day, force: true })}
           className="purvai-btn purvai-btn-tertiary"
         >
           <RefreshCw size={18} aria-hidden />
@@ -141,6 +142,25 @@ export default function PlanPage() {
 
       {plan && (
         <>
+          {plan.generated_by === "template" && plan.note && (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-[6px] border border-border bg-info-tint px-4 py-3 text-sm text-info"
+            >
+              <Info size={18} className="shrink-0" aria-hidden />
+              <span>{plan.note}</span>
+            </div>
+          )}
+
+          {plan.summary && (
+            <section className="purvai-card flex flex-wrap items-center justify-between gap-3 p-5">
+              <p className="text-sm text-text">{plan.summary}</p>
+              <span className="rounded-full border border-border bg-surface px-2.5 py-0.5 text-xs text-text-2">
+                AI wording
+              </span>
+            </section>
+          )}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {plan.periods.map((period) => {
               const title = PERIOD_TITLES[period.period] ?? period.period;
@@ -200,10 +220,15 @@ export default function PlanPage() {
                             className="mt-0.5 shrink-0 text-accent"
                             aria-hidden
                           />
-                          <span>{item.text}</span>
+                          <span>
+                            <span className="block font-medium text-text">{item.text}</span>
+                            {item.why && (
+                              <span className="mt-0.5 block text-xs text-text-2">{item.why}</span>
+                            )}
+                          </span>
                         </span>
                         <span className="shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
-                          Rule
+                          {item.tag === "ai_wording" ? "AI wording" : "Rule"}
                         </span>
                       </li>
                     ))}

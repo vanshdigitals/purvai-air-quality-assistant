@@ -1,6 +1,7 @@
 """Home Air ACH calculator and deterministic indoor tips catalogue."""
 
 from datetime import UTC, datetime
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,12 +36,13 @@ class HomeAirCalcResponse(BaseModel):
 
 
 class HomeAirTip(BaseModel):
-    """Single deterministic indoor air tip."""
+    """Single deterministic or AI-worded indoor air tip."""
 
     model_config = ConfigDict(frozen=True)
 
     tip_id: str
     text: str
+    tag: Literal["rule", "ai_wording"] = "rule"
 
 
 class HomeAirTipsResponse(BaseModel):
@@ -49,6 +51,7 @@ class HomeAirTipsResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     level: Category
+    generated_by: Literal["rules", "gemini", "groq", "template"] = "rules"
     tips: list[HomeAirTip]
     ventilation_hour: str | None
 

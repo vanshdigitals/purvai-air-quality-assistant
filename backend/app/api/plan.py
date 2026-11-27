@@ -20,6 +20,7 @@ class PlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     day: Literal["today", "tomorrow"] = "today"
+    rebuild: bool = False
 
 
 @router.post("/plan", response_model=DailyPlanResponse)
@@ -28,6 +29,7 @@ async def post_plan(request: Request, body: PlanRequest) -> DailyPlanResponse:
     settings = request.app.state.settings
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")
+    plan_ai_cache = getattr(request.app.state, "plan_ai_cache", None)
 
     with Session(engine) as session:
         household, member_kinds, primary_loc = resolve_existing_household(request, session)
@@ -39,7 +41,9 @@ async def post_plan(request: Request, body: PlanRequest) -> DailyPlanResponse:
                 member_kinds=member_kinds,
                 location=primary_loc,
                 day=body.day,
+                rebuild=body.rebuild,
                 household_header=household_header,
+                plan_ai_cache=plan_ai_cache,
             )
         except ProviderError as exc:
             raise ApiStatusError(

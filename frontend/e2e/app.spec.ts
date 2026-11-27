@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const APP_ROUTES = [
   { path: "/today", heading: "Today" },
+  { path: "/ask", heading: "Ask Purvai" },
   { path: "/plan", heading: "Daily Protection Plan" },
   { path: "/home-air", heading: "Home Air" },
   { path: "/settings", heading: "Settings" },
@@ -142,10 +143,10 @@ test.describe("Purvai Phase 3 E2E", () => {
     await ensureHouseholdOnboarded(page);
     await page.getByRole("link", { name: "Plan my day" }).click();
     await expect(page).toHaveURL(/\/plan$/);
-    await expect(page.getByText("Morning")).toBeVisible();
-    await expect(page.getByText("Afternoon")).toBeVisible();
-    await expect(page.getByText("Evening")).toBeVisible();
-    await expect(page.getByText("Night")).toBeVisible();
+    await expect(page.getByText("Morning", { exact: true })).toBeVisible();
+    await expect(page.getByText("Afternoon", { exact: true })).toBeVisible();
+    await expect(page.getByText("Evening", { exact: true })).toBeVisible();
+    await expect(page.getByText("Night", { exact: true })).toBeVisible();
 
     await page.getByRole("radio", { name: "Tomorrow" }).click();
     await expect(
@@ -235,5 +236,65 @@ test.describe("Purvai Phase 3 E2E", () => {
         ).toEqual([]);
       }
     }
+  });
+});
+
+test.describe("Purvai Phase 4 E2E", () => {
+  test("asks a suggested question and displays reply with data chips and AI wording", async ({
+    page,
+  }) => {
+    await ensureHouseholdOnboarded(page);
+    await page.goto("/ask");
+    await page.getByRole("button", { name: "Can my child play outside at 5 pm?" }).click();
+    await expect(page.getByText("Worded by Gemini")).toBeVisible();
+    await expect(page.getByText("AQI 312")).toBeVisible();
+    await expect(page.getByText("AI wording").first()).toBeVisible();
+  });
+
+  test("template fallback path shows standard advice banner", async ({ page }) => {
+    await ensureHouseholdOnboarded(page);
+    await page.goto("/ask");
+    await page.getByLabel("Ask a question").fill("Show fallback template please");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(
+      page.getByText("AI unavailable, showing standard advice", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Standard advice", { exact: true })).toBeVisible();
+  });
+
+  test("save chat history persists across reload and deletes cleanly", async ({ page }) => {
+    await ensureHouseholdOnboarded(page);
+    await page.goto("/settings");
+    const saveToggle = page.getByRole("switch", { name: "Save chat history" });
+    if ((await saveToggle.getAttribute("aria-checked")) !== "true") {
+      await saveToggle.click();
+      await expect(saveToggle).toHaveAttribute("aria-checked", "true");
+    }
+
+    await page.goto("/ask");
+    await page.getByLabel("Ask a question").fill("Persisted question for history check");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText("Persisted question for history check")).toBeVisible();
+    await expect(page.getByText("Worded by Gemini")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText("Persisted question for history check")).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete chat history" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByText("Ask about the air today")).toBeVisible();
+  });
+
+  test("keyboard-only chat sends via Enter and keeps focus in composer", async ({ page }) => {
+    await ensureHouseholdOnboarded(page);
+    await page.goto("/ask");
+    const composer = page.getByLabel("Ask a question");
+    await composer.focus();
+    await page.keyboard.type("Should I wear an N95 outdoors?");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Should I wear an N95 outdoors?")).toBeVisible();
+    await expect(page.getByText("Worded by Gemini").first()).toBeVisible();
+    await expect(composer).toBeFocused();
   });
 });

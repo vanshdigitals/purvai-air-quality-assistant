@@ -18,13 +18,21 @@ export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
 
-  constructor(message: string, code: string, status: number, requestId?: string) {
+  constructor(
+    message: string,
+    code: string,
+    status: number,
+    requestId?: string,
+    retryAfterSeconds?: number
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.requestId = requestId;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -33,6 +41,7 @@ export interface HealthResponse {
   app: string;
   version: string;
   mode: "local" | "demo";
+  ai_available?: boolean;
   database: {
     status: "ok" | "error";
     storage: "persistent" | "temporary";
@@ -156,6 +165,13 @@ export interface AirForecastResponse {
   };
 }
 
+export interface PlanItem {
+  action_id: string;
+  text: string;
+  why?: string | null;
+  tag: "rule" | "ai_wording";
+}
+
 export interface PlanPeriod {
   period: "morning" | "afternoon" | "evening" | "night";
   start: string;
@@ -163,15 +179,17 @@ export interface PlanPeriod {
   level: AqiCategory;
   aqi: number;
   past: boolean;
-  items: VerdictAction[];
+  items: PlanItem[];
 }
 
 export interface DailyPlanResponse {
   plan_date: string;
   day: "today" | "tomorrow";
-  generated_by: "rules";
+  generated_by: "rules" | "gemini" | "groq" | "template";
   generated_at: string;
   source_label: "Measured" | "Modelled" | "Estimated";
+  summary?: string | null;
+  note?: string | null;
   periods: PlanPeriod[];
 }
 
@@ -193,12 +211,54 @@ export interface HomeAirCalcResponse {
 export interface HomeAirTip {
   tip_id: string;
   text: string;
+  tag?: "rule" | "ai_wording";
 }
 
 export interface HomeAirTipsResponse {
   level: AqiCategory;
+  generated_by?: "rules" | "gemini" | "groq" | "template";
   tips: HomeAirTip[];
   ventilation_hour: string | null;
+}
+
+export type DataCitedKind = "aqi" | "category" | "pollutant" | "forecast" | "grap" | "source";
+
+export interface ChatRecommendation {
+  action_id: string;
+  title: string;
+  why: string;
+  tag: "rule" | "ai_wording";
+}
+
+export interface ChatResponse {
+  schema_version: "1.0";
+  verdict_level: AqiCategory;
+  answer: string;
+  data_cited: DataCitedKind[];
+  recommendations: ChatRecommendation[];
+  needs_doctor_note: boolean;
+  out_of_scope: boolean;
+  generated_by: "gemini" | "groq" | "template";
+  note?: string | null;
+  aqi: number;
+  category: AqiCategory;
+  source_label: "Measured" | "Modelled" | "Estimated";
+  observed_at: string;
+  age_minutes: number;
+  stale: boolean;
+  grap_stage?: string | null;
+}
+
+export interface ConversationMessage {
+  id: number;
+  role: "user" | "assistant";
+  text: string;
+  generated_by: "user" | "gemini" | "groq" | "template";
+  created_at: string;
+}
+
+export interface ConversationsResponse {
+  messages: ConversationMessage[];
 }
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -246,7 +306,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     const code = body?.error?.code ?? `HTTP_${response.status}`;
     const message = body?.error?.message ?? `Request failed with status ${response.status}.`;
     const requestId = body?.error?.request_id;
-    throw new ApiError(message, code, response.status, requestId);
+    const retryRaw = response.headers.get("Retry-After");
+    const retryParsed = retryRaw ? Number.parseInt(retryRaw, 10) : Number.NaN;
+    const retryAfterSeconds = Number.isFinite(retryParsed) ? retryParsed : undefined;
+    throw new ApiError(message, code, response.status, requestId, retryAfterSeconds);
   }
 
   return parsed as T;
@@ -284,11 +347,11 @@ export function fetchAirForecast(
   return apiFetch<AirForecastResponse>(`/air/forecast?lat=${lat}&lon=${lon}&hours=${hours}`);
 }
 
-export function buildPlan(day: "today" | "tomorrow"): Promise<DailyPlanResponse> {
+export function buildPlan(day: "today" | "tomorrow", rebuild = false): Promise<DailyPlanResponse> {
   return apiFetch<DailyPlanResponse>("/plan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ day }),
+    body: JSON.stringify({ day, rebuild }),
   });
 }
 
@@ -302,4 +365,22 @@ export function calcHomeAir(payload: HomeAirCalcRequest): Promise<HomeAirCalcRes
 
 export function fetchHomeAirTips(lat: number, lon: number): Promise<HomeAirTipsResponse> {
   return apiFetch<HomeAirTipsResponse>(`/home-air/tips?lat=${lat}&lon=${lon}`);
+}
+
+export function postChat(message: string): Promise<ChatResponse> {
+  return apiFetch<ChatResponse>("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+}
+
+export function fetchConversations(): Promise<ConversationsResponse> {
+  return apiFetch<ConversationsResponse>("/conversations");
+}
+
+export function deleteConversations(): Promise<void> {
+  return apiFetch<unknown>("/conversations", {
+    method: "DELETE",
+  }).then(() => undefined);
 }

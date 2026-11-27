@@ -93,9 +93,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.last_purge_at = None
     app.state.last_demo_purge_at = None
     app.state.geocode_cache = {}
+    app.state.plan_ai_cache = {}
     app.state.locations_limiter = Limiter(
         key_func=get_remote_address,
         default_limits=["30/minute"],
+    )
+    app.state.ai_limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["20/minute"],
     )
 
     register_exception_handlers(app)

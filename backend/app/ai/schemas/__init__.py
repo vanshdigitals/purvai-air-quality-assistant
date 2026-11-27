@@ -1,0 +1,1 @@
+"""Versioned AI schemas package."""

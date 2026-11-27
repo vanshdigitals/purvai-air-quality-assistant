@@ -8,7 +8,7 @@
 | Styling | Tailwind 4.3.5 (`@tailwindcss/vite` 4.3.5) + CSS-variable tokens + `@fontsource-variable/{instrument-sans,geist}` 5.3.0 | [Design system](design/PURVAI_DESIGN_SYSTEM.md); self-hosted fonts for strict `'self'` CSP |
 | Data | TanStack Query 5.108.4 | Cache, retry, stale states |
 | Charts / icons | Recharts 3.11.1 / Lucide React 1.81.0 | SVG, open-source; Recharts lazy-loaded |
-| API | FastAPI 0.165.0, Uvicorn 0.54.0, Pydantic 2.14.4, pydantic-settings 2.16.3, httpx 0.29.0 | Typed validation, OpenAPI, 10 s provider HTTP |
+| API | FastAPI 0.165.0, Uvicorn 0.54.0, Pydantic 2.14.4, pydantic-settings 2.16.3, httpx 0.29.0, google-genai 3.6.1 | Typed validation, OpenAPI, 10 s provider HTTP, Gemini structured output |
 | ORM | SQLModel 0.0.50 on SQLAlchemy 2.1.9 | Pydantic-native; Core when needed |
 | Migrations | Alembic 1.20.1, `render_as_batch=True` | SQLite ALTER limits |
 | Rate limit | slowapi 0.1.10 | One instance is enough |
@@ -21,7 +21,7 @@ Next.js rejected (second Node server). Phase 1 versions pinned (A-04); Recharts 
 TC-01 zero budget. TC-02 no Supabase, Firebase or paid DB. TC-03 no auth in MVP. TC-04 one container, one process, max one instance. TC-05 single branch, repo under 10 MB (unverified rule, followed).
 
 ## Runtime and performance
-Python 3.12, uvicorn one worker, SQLite at `DATABASE_PATH`, config via pydantic-settings (`.env` locally, Secret Manager on Cloud Run). Settings include `CPCB_TIMEOUT_S` (default `20`, range `5` to `60`) for station-list fetches and `PURVAI_FAKE_PROVIDERS` (`false` default; local test-only fixture seam, refused in demo mode). PERF-01 cached `/air` p95 under 300 ms. PERF-02 AI timeout 15 s, one fallback, then template. PERF-03 JS under 250 KB gzipped. PERF-04 air cache 30 min.
+Python 3.12, uvicorn one worker, SQLite at `DATABASE_PATH`, config via pydantic-settings (`.env` locally, Secret Manager on Cloud Run). Settings include `CPCB_TIMEOUT_S` (default `20`, range `5` to `60`), `AI_TIMEOUT_S` (default `15`, range `5` to `30`), `AI_MODEL` (default `gemini-3.5-flash-lite`; `GEMINI_API_KEY` not present locally so live model list check skipped), `AI_FALLBACK_MODEL` (`openai/gpt-oss-20b`; `400` treated as provider failure), and `PURVAI_FAKE_PROVIDERS` (`false` default; local test-only fixture seam, refused in demo mode). PERF-01 cached `/air` p95 under 300 ms. PERF-02 AI timeout 15 s, one fallback, then template. PERF-03 JS under 250 KB gzipped. PERF-04 air cache 30 min.
 
 ## External services
 | Service | Purpose | Status | Key | Limits | Terms | Fallback |

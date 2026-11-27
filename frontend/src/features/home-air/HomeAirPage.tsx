@@ -318,9 +318,12 @@ export default function HomeAirPage() {
                 {tipsQuery.data.tips.map((tip) => (
                   <li
                     key={tip.tip_id}
-                    className="rounded-[6px] border border-border bg-subtle px-3.5 py-2.5 text-text"
+                    className="flex items-start justify-between gap-3 rounded-[6px] border border-border bg-subtle px-3.5 py-2.5 text-text"
                   >
-                    {tip.text}
+                    <span>{tip.text}</span>
+                    <span className="shrink-0 rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-text-2">
+                      {tip.tag === "ai_wording" ? "AI wording" : "Rule"}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.air import router as air_router
+from app.api.chat import router as chat_router
 from app.api.health import router as health_router
 from app.api.home_air import router as home_air_router
 from app.api.household import router as household_router
@@ -16,6 +17,7 @@ api_v1_router.include_router(household_router)
 api_v1_router.include_router(locations_router)
 api_v1_router.include_router(plan_router)
 api_v1_router.include_router(home_air_router)
+api_v1_router.include_router(chat_router)
 
 
 @api_v1_router.api_route(

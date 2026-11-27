@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { ThemeControl } from "../../components/ThemeControl";
-import { fetchHousehold, saveHousehold, type HouseholdResponse } from "../../lib/api";
+import { fetchHealth, fetchHousehold, saveHousehold, type HouseholdResponse } from "../../lib/api";
 import {
   applyReduceMotionToDocument,
   applyThemeToDocument,
@@ -29,13 +29,24 @@ export default function SettingsPage() {
     retry: false,
   });
 
+  const healthQuery = useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    retry: false,
+  });
+
   const [themeOverride, setThemeOverride] = useState<ThemeChoice | null>(null);
   const [reduceMotionOverride, setReduceMotionOverride] = useState<boolean | null>(null);
+  const [aiEnabledOverride, setAiEnabledOverride] = useState<boolean | null>(null);
+  const [saveChatOverride, setSaveChatOverride] = useState<boolean | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const theme = themeOverride ?? householdQuery.data?.settings.theme ?? getStoredTheme();
   const reduceMotion =
     reduceMotionOverride ?? householdQuery.data?.settings.reduce_motion ?? getStoredReduceMotion();
+  const aiEnabled = aiEnabledOverride ?? householdQuery.data?.settings.ai_enabled ?? true;
+  const saveChat = saveChatOverride ?? householdQuery.data?.settings.save_chat ?? false;
+  const aiAvailable = healthQuery.data?.ai_available ?? false;
 
   useEffect(() => {
     if (theme !== "system" || typeof window.matchMedia !== "function") {
@@ -53,11 +64,18 @@ export default function SettingsPage() {
       queryClient.setQueryData(["household"], saved);
       setThemeOverride(null);
       setReduceMotionOverride(null);
+      setAiEnabledOverride(null);
+      setSaveChatOverride(null);
       setSaveMessage("Saved");
     },
   });
 
-  const persistSettings = (nextTheme: ThemeChoice, nextReduceMotion: boolean) => {
+  const persistSettings = (
+    nextTheme: ThemeChoice,
+    nextReduceMotion: boolean,
+    nextAiEnabled: boolean = aiEnabled,
+    nextSaveChat: boolean = saveChat
+  ) => {
     const current = householdQuery.data;
     if (!current) return;
     setSaveMessage(null);
@@ -68,6 +86,8 @@ export default function SettingsPage() {
         ...current.settings,
         theme: nextTheme,
         reduce_motion: nextReduceMotion,
+        ai_enabled: nextAiEnabled,
+        save_chat: nextSaveChat,
       },
     });
   };
@@ -83,6 +103,18 @@ export default function SettingsPage() {
     setReduceMotionOverride(next);
     applyReduceMotionToDocument(next);
     persistSettings(theme, next);
+  };
+
+  const handleAiToggle = () => {
+    const next = !aiEnabled;
+    setAiEnabledOverride(next);
+    persistSettings(theme, reduceMotion, next, saveChat);
+  };
+
+  const handleSaveChatToggle = () => {
+    const next = !saveChat;
+    setSaveChatOverride(next);
+    persistSettings(theme, reduceMotion, aiEnabled, next);
   };
 
   const hh = householdQuery.data;
@@ -172,43 +204,61 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* AI Toggles (Disabled until Phase 4) */}
+      {/* Assistant Preferences */}
       <section aria-labelledby="ai-settings-heading" className="purvai-card space-y-4 p-6">
         <h2 id="ai-settings-heading" className="text-lg font-semibold">
           Assistant preferences
         </h2>
 
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="font-heading text-sm font-medium text-text">AI personalisation</div>
-            <div className="text-xs text-muted">Available in a later version</div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="font-heading text-sm font-medium text-text">AI personalisation</div>
+              <div className="text-xs text-text-2">
+                {aiAvailable
+                  ? "Use Gemini or Groq to reword plans and answer Ask Purvai questions."
+                  : "AI is not set up on this server. Standard advice is used."}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={aiAvailable ? aiEnabled : false}
+              aria-label="AI personalisation"
+              disabled={!aiAvailable}
+              onClick={handleAiToggle}
+              className={`purvai-btn min-w-[76px] ${
+                aiAvailable && aiEnabled ? "purvai-btn-primary" : "purvai-btn-secondary"
+              }`}
+            >
+              {aiAvailable && aiEnabled ? "On" : "Off"}
+            </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={false}
-            aria-label="AI personalisation"
-            disabled
-            className="purvai-btn min-w-[76px]"
-          >
-            Off
-          </button>
+          <p className="text-xs text-muted">
+            Questions are sent to Google Gemini, or Groq as a backup, with air data and household
+            flags only. No name, address or exact location is sent. Free-tier requests may be
+            reviewed by people.
+          </p>
         </div>
 
         <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
           <div>
             <div className="font-heading text-sm font-medium text-text">Save chat history</div>
-            <div className="text-xs text-muted">Available in a later version</div>
+            <div className="text-xs text-text-2">
+              Off by default. Store Ask Purvai messages on this device only when enabled.
+            </div>
           </div>
           <button
             type="button"
             role="switch"
-            aria-checked={false}
+            aria-checked={saveChat}
             aria-label="Save chat history"
-            disabled
-            className="purvai-btn min-w-[76px]"
+            onClick={handleSaveChatToggle}
+            className={`purvai-btn min-w-[76px] ${
+              saveChat ? "purvai-btn-primary" : "purvai-btn-secondary"
+            }`}
           >
-            Off
+            {saveChat ? "On" : "Off"}
           </button>
         </div>
       </section>

@@ -228,6 +228,10 @@ export default function TodayPage() {
               <ArrowRight size={18} aria-hidden />
             </Link>
 
+            <Link to="/ask" className="purvai-btn purvai-btn-tertiary">
+              Ask about today
+            </Link>
+
             <button
               ref={meaningBtnRef}
               type="button"

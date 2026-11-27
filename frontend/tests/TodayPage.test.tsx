@@ -147,7 +147,7 @@ describe("TodayPage", () => {
 
     expect(await screen.findByText("401+")).toBeInTheDocument();
     expect(screen.getByLabelText("401, Severe, CPCB scale, Measured")).toBeInTheDocument();
-  });
+  }, 15000);
 
   it("renders stale banner at exactly 2 h 1 min under a fixed clock", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

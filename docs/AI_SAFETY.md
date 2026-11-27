@@ -10,7 +10,16 @@ SAF-04 respiratory or chest symptoms set `needs_doctor_note=true`; UI adds "Cons
 SAF-05 sensitive groups get stricter wording. Masks: well-fitted N95/FFP2; BIS IS 9473 marking unverified, so no standard number is claimed.
 
 ## Guard and contradictions
-Server checks: verdict equality, action IDs in the allowed list, banned phrases, and every number in the answer must appear in context (within plus or minus 1). Any failure discards the reply; fallback once, then template.
+Server checks after Pydantic validation:
+1. `verdict_level` equals the rules household level (`GUARD_VERDICT`).
+2. `action_id`s belong to `context.verdict.action_ids` (for `DailyPlanWording`, each period's `action_id`s match that period's rules exactly; for `IndoorAdvice`, `tip_id`s belong to the level's rule tips).
+3. Banned-claim check (case-insensitive whole words or phrases across all text fields, `GUARD_BANNED_CLAIM`): words `cure`, `cures`, `cured`, `dosage`, `dose`, `mg`, `prescribe`, `prescription`, `diagnose`, `diagnosis`; phrases `makes the air safe`, `make the air safe`, `air is safe`, `completely safe`, `100% safe`, `fully protects`, `guaranteed`.
+4. Permissive phrases rejected when household level is `poor`, `very_poor`, or `severe` (`GUARD_PERMISSIVE`): `safe to go out`, `safe to play outside`, `fine to go out`, `okay to go out`, `ok to go out`, `no need for a mask`, `no mask needed`.
+5. Number and time grounding: every numeric value in text fields must lie within ±1 of a number in `context` (`GUARD_NUMBER`), skipping pollutant names (`PM2.5`, `PM10`, `NO2`, `SO2`, `O3`, `CO`, `CO2`), mask labels (`N95`, `FFP2`), and the GRAP stage; time expressions (`HH:MM`, `H am/pm`) are normalised to 24 h `HH:MM` and checked against `local_time`, `observed_time_ist`, `forecast` times, or times present in the user message (`GUARD_TIME`).
+6. Length caps enforced by schemas (`extra="forbid"`). Any failure discards the reply; fallback once, then template.
+
+## Symptom keywords (SAF-04)
+Server enforces `needs_doctor_note=true` (also on templates; never cleared by AI) on: `cough`, `coughing`, `wheeze`, `wheezing`, `breathless`, `breathlessness`, `short of breath`, `shortness of breath`, `chest pain`, `chest tightness`, `can't breathe`, `cannot breathe`, `difficulty breathing`, `asthma attack`, `saans`.
 
 ## Prompt injection
 User text is delimited as untrusted; embedded instructions are ignored. JSON-only output, no tools, immutable verdict, 500-char cap, control characters stripped.

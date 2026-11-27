@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "verdict_level": "severe",
+  "tips": [
+    {
+      "tip_id": "purifier_closed_room",
+      "text": "Keep doors and windows shut while running your purifier."
+    },
+    {
+      "tip_id": "wet_mopping",
+      "text": "Clean floors with a damp mop rather than sweeping dry dust."
+    },
+    {
+      "tip_id": "cooking_exhaust",
+      "text": "Turn on your kitchen chimney or exhaust whenever cooking."
+    }
+  ],
+  "ach_explanation": null
+}

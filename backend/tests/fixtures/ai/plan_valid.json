@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "verdict_level": "severe",
+  "summary": "Keep sensitive members indoors today and wear a well-fitted N95 for essential trips.",
+  "periods": [
+    {
+      "period": "morning",
+      "items": [
+        {
+          "action_id": "stay_indoors",
+          "title": "Morning indoor routine",
+          "why": "Morning air is severe for your household.",
+          "tag": "ai_wording"
+        }
+      ]
+    },
+    {
+      "period": "afternoon",
+      "items": [
+        {
+          "action_id": "stay_indoors",
+          "title": "Afternoon indoor routine",
+          "why": "Keep outdoor exertion indoors during the afternoon.",
+          "tag": "ai_wording"
+        }
+      ]
+    },
+    {
+      "period": "evening",
+      "items": [
+        {
+          "action_id": "stay_indoors",
+          "title": "Evening indoor routine",
+          "why": "Pollution builds again in the evening window.",
+          "tag": "ai_wording"
+        }
+      ]
+    },
+    {
+      "period": "night",
+      "items": [
+        {
+          "action_id": "stay_indoors",
+          "title": "Night purifier routine",
+          "why": "Run the purifier overnight with windows closed.",
+          "tag": "ai_wording"
+        }
+      ]
+    }
+  ]
+}

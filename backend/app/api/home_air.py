@@ -1,17 +1,30 @@
 """Home Air ACH calculator and deterministic indoor tips endpoints."""
 
+from typing import Literal, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request, status
 from sqlmodel import Session
 
+from app.ai.context import build_ai_context
+from app.ai.gateway import generate_indoor_advice
+from app.ai.schemas.v1.models import IndoorAdvice
 from app.api.errors import ApiStatusError
-from app.aqi.pipeline import get_air_forecast, get_air_quality, parse_utc_iso
+from app.aqi.pipeline import (
+    AirForecastResponse,
+    get_air_forecast,
+    get_air_quality,
+    parse_utc_iso,
+    resolve_household_context,
+    utc_now,
+)
+from app.db.models import SettingsRecord
 from app.providers.base import ProviderError
 from app.rules.catalogue import Category
 from app.rules.home_air import (
     HomeAirCalcRequest,
     HomeAirCalcResponse,
+    HomeAirTip,
     HomeAirTipsResponse,
     calculate_home_air,
     get_home_air_tips,
@@ -68,8 +81,9 @@ async def get_home_air_tips_endpoint(
             ) from exc
 
         ventilation_hour: str | None = None
+        forecast_resp: AirForecastResponse | None = None
         try:
-            forecast = await get_air_forecast(
+            forecast_resp = await get_air_forecast(
                 session,
                 settings=settings,
                 lat=lat,
@@ -78,7 +92,7 @@ async def get_home_air_tips_endpoint(
             )
             daytime = [
                 h
-                for h in forecast.hours
+                for h in forecast_resp.hours
                 if (8, 0)
                 <= (
                     (dt := parse_utc_iso(h.time).astimezone(IST_ZONE)).hour,
@@ -92,4 +106,63 @@ async def get_home_air_tips_endpoint(
         except ProviderError:
             ventilation_hour = None
 
-        return get_home_air_tips(level, ventilation_hour=ventilation_hour)
+        rules_res = get_home_air_tips(level, ventilation_hour=ventilation_hour)
+        household, member_kinds, primary_loc = resolve_household_context(
+            session,
+            mode=settings.purvai_mode,
+            household_header=household_header,
+        )
+        ai_enabled = True
+        if household is not None:
+            s_row = session.get(SettingsRecord, household.id)
+            if s_row is not None:
+                ai_enabled = bool(s_row.ai_enabled)
+
+        has_ai_key = bool(
+            settings.purvai_fake_providers or settings.gemini_api_key or settings.groq_api_key
+        )
+        if not (ai_enabled and has_ai_key):
+            return rules_res
+
+        context = build_ai_context(
+            air=air,
+            forecast=forecast_resp,
+            member_kinds=member_kinds,
+            city=primary_loc.city if primary_loc is not None else None,
+            now_utc=utc_now(),
+        )
+        allowed_ids = {tip.tip_id for tip in rules_res.tips}
+        gw = await generate_indoor_advice(
+            settings=settings,
+            context=context,
+            allowed_tip_ids=allowed_ids,
+            ventilation_hour=ventilation_hour,
+            ai_enabled=True,
+        )
+        if gw.generated_by not in ("gemini", "groq"):
+            return HomeAirTipsResponse(
+                level=rules_res.level,
+                generated_by=cast(
+                    Literal["rules", "gemini", "groq", "template"],
+                    gw.generated_by,
+                ),
+                tips=rules_res.tips,
+                ventilation_hour=rules_res.ventilation_hour,
+            )
+
+        advice = cast(IndoorAdvice, gw.data)
+        worded_map = {t.tip_id: t.text for t in advice.tips}
+        merged_tips = [
+            HomeAirTip(
+                tip_id=t.tip_id,
+                text=worded_map[t.tip_id] if t.tip_id in worded_map else t.text,
+                tag="ai_wording" if t.tip_id in worded_map else "rule",
+            )
+            for t in rules_res.tips
+        ]
+        return HomeAirTipsResponse(
+            level=rules_res.level,
+            generated_by=gw.generated_by,
+            tips=merged_tips,
+            ventilation_hour=rules_res.ventilation_hour,
+        )

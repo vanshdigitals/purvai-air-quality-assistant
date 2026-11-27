@@ -18,7 +18,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 | GET /locations/search?q | Geocoding proxy | FR-01 |
 | GET, PUT /household | Members, location, settings | FR-01 |
 | POST /plan | Today's or tomorrow's plan | FR-06 |
-| POST /chat; DELETE /conversations | Ask Purvai; delete history | FR-08, FR-17 |
+| POST /chat; GET, DELETE /conversations | Ask Purvai; read or delete history | FR-08, FR-17 |
 | POST /home-air/calc; GET /home-air/tips | ACH and indoor tips | FR-09 |
 | GET, POST /activities; DELETE /activities/{id} | Activity log | FR-11 |
 | GET /impact/summary?days=7 | Totals | FR-11 |
@@ -34,6 +34,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
   "app": "purvai",
   "version": "0.1.0",
   "mode": "local",
+  "ai_available": false,
   "database": { "status": "ok", "storage": "persistent", "schema_revision": "0002_location_admin" },
   "time": "2026-11-27T10:00:00Z"
 }
@@ -85,13 +86,15 @@ Query: `q` (`2..60` chars). Proxies Open-Meteo Geocoding filtered to `IN`, cache
 In `local` mode returns/upserts the single household (`404 HOUSEHOLD_NOT_FOUND` on `GET` before onboarding). In `demo` mode requires valid UUIDv4 `X-Purvai-Household` header (`400 HOUSEHOLD_HEADER_REQUIRED` if missing/invalid). Validates `members` (sum >= 1, unique kinds), `location` (India bounds else `422 UNSUPPORTED_REGION`), and `settings` (`theme`, `commute_mode`, `ai_enabled`, `save_chat`, `reduce_motion`).
 
 ### POST /plan
-Body `{"day":"today"|"tomorrow"}`. Requires an existing household (`409 HOUSEHOLD_REQUIRED` if not onboarded). Computes 4 IST periods (`morning`, `afternoon`, `evening`, `night`) using worst-hour AQI and persists `daily_plan` (`generated_by: "rules"`) + `plan_item` rows (`tag: "rule"`). Response: `{plan_date, day, generated_by, generated_at, source_label, periods: [{period, start, end, level, aqi, past, items}]}`.
+Body `{"day":"today"|"tomorrow","rebuild":false}`. Requires an existing household (`409 HOUSEHOLD_REQUIRED` if not onboarded). Computes 4 IST periods (`morning`, `afternoon`, `evening`, `night`) using worst-hour AQI and persists `daily_plan` (`generated_by`: `rules` | `gemini` | `groq` | `template`) + `plan_item` rows (`tag`: `rule` | `ai_wording`). Reuses stored plans under 30 min when period levels/action IDs match unless `rebuild: true`. Response: `{plan_date, day, generated_by, generated_at, source_label, summary, note, periods: [{period, start, end, level, aqi, past, items: [{action_id, text, why, tag}]}]}`.
 
 ### POST /home-air/calc and GET /home-air/tips
-`POST /home-air/calc` validates `{length_m, width_m, height_m, cadr_m3h}` and returns `{volume_m3, ach, target_ach: 5, meets_target, cadr_needed_m3h}`. `GET /home-air/tips?lat&lon` returns `{level, tips: [{tip_id, text}], ventilation_hour}` where `ventilation_hour` is an ISO 8601 UTC timestamp (`| null`) for the cleanest forecast hour between `08:00` and `20:00` IST.
+`POST /home-air/calc` validates `{length_m, width_m, height_m, cadr_m3h}` and returns `{volume_m3, ach, target_ach: 5, meets_target, cadr_needed_m3h}`. `GET /home-air/tips?lat&lon` returns `{level, generated_by, tips: [{tip_id, text, tag}], ventilation_hour}` where `ventilation_hour` is an ISO 8601 UTC timestamp (`| null`) for the cleanest forecast hour between `08:00` and `20:00` IST.
 
-### POST /chat
-Request `{"message":"Can my son play outside at 5 pm?"}` (1 to 500 chars). Response: [ChatReply](AI_SCHEMAS.md#chatreply) plus `generated_by` (gemini, groq or template).
+### POST /chat and GET, DELETE /conversations
+- `POST /chat`: body `{"message": str}` (1 to 500 chars trimmed, `extra="forbid"`). Requires an existing household (`409 HOUSEHOLD_REQUIRED`). Rate limit `20/min` per IP (`429 RATE_LIMIT_EXCEEDED` with `Retry-After`). Response includes [ChatReply](AI_SCHEMAS.md#schemas-v10) plus `generated_by` (`gemini` | `groq` | `template`), `note`, `aqi`, `category`, `source_label`, `observed_at`, `age_minutes`, `stale`, and `grap_stage`. Writes 0 DB rows unless `settings.save_chat` is `true`.
+- `GET /conversations`: returns `{messages: [{id, role, text, generated_by, created_at}]}` (last 50 messages for the household, oldest first; `409 HOUSEHOLD_REQUIRED` if not onboarded).
+- `DELETE /conversations`: deletes all saved conversations and messages for the household and returns `204`.
 ### POST /activities
 ```json
 {"kind":"trip","mode":"metro","distance_km":12.5,"replaced_mode":"car_petrol","occurred_at":"2026-11-25T02:30:00Z"}
