@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import TodayPage from "../src/features/today/TodayPage";
 
@@ -62,24 +62,24 @@ const FORECAST_BASE = {
   source_label: "Modelled",
   indicative: true,
   attribution: ["Open-Meteo", "CAMS"],
-  generated_at: "2026-11-25T04:00:00Z",
+  generated_at: "2026-11-27T04:00:00Z",
   hours: [
     {
-      time: "2026-11-25T05:00:00Z",
+      time: "2026-11-27T05:00:00Z",
       aqi: 310,
       aqi_is_floor: false,
       category: "very_poor",
       dominant_pollutant: "pm25",
     },
     {
-      time: "2026-11-25T09:30:00Z",
+      time: "2026-11-27T11:00:00Z",
       aqi: 236,
       aqi_is_floor: false,
       category: "poor",
       dominant_pollutant: "pm25",
     },
   ],
-  lowest: { time: "2026-11-25T09:30:00Z", aqi: 236, category: "poor" },
+  lowest: { time: "2026-11-27T11:00:00Z", aqi: 236, category: "poor" },
 };
 
 function renderToday() {
@@ -95,49 +95,103 @@ function renderToday() {
   );
 }
 
-describe("TodayPage", () => {
-  it("renders verdict, 401+ floor AQI, GRAP, stale banner at 2h 1m, and forecast table toggle", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.endsWith("/household")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(HOUSEHOLD_MOCK), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
-        );
-      }
-      if (url.includes("/air/forecast")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(FORECAST_BASE), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
-        );
-      }
+function mockTodayApis(airOverride: Record<string, unknown> = {}) {
+  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.endsWith("/household")) {
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            ...AIR_BASE,
-            aqi: 401,
-            aqi_is_floor: true,
-            category: "severe",
-            age_minutes: 121,
-            stale: true,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
+        new Response(JSON.stringify(HOUSEHOLD_MOCK), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
       );
-    });
+    }
+    if (url.includes("/air/forecast")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(FORECAST_BASE), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ ...AIR_BASE, ...airOverride }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+  });
+}
 
+describe("TodayPage", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+  });
+
+  it("renders verdict card and three rule action cards", async () => {
+    mockTodayApis();
     renderToday();
 
     expect(await screen.findByText("Stay indoors today. Run the purifier.")).toBeInTheDocument();
-    expect(screen.getByText("401+")).toBeInTheDocument();
+    expect(screen.getByText(/Your household includes a child/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Rule").length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("renders 401+ floor AQI hero with accessible label", async () => {
+    mockTodayApis({ aqi: 401, aqi_is_floor: true, category: "severe" });
+    renderToday();
+
+    expect(await screen.findByText("401+")).toBeInTheDocument();
     expect(screen.getByLabelText("401, Severe, CPCB scale, Measured")).toBeInTheDocument();
-    expect(screen.getByText(/GRAP Stage II is in force for Delhi NCR/)).toBeInTheDocument();
-    expect(screen.getByText("Data is 2 hours old. Showing the last reading.")).toBeInTheDocument();
+  });
+
+  it("renders stale banner at exactly 2 h 1 min under a fixed clock", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-27T05:31:00Z"));
+    mockTodayApis({
+      observed_at: "2026-11-27T03:30:00Z",
+      age_minutes: 121,
+      stale: true,
+    });
+
+    renderToday();
+    expect(
+      await screen.findByText("Data is 2 hours old. Showing the last reading.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows GRAP when present and hides GRAP when null", async () => {
+    mockTodayApis();
+    const { unmount } = renderToday();
+    expect(await screen.findByText(/GRAP Stage II is in force for Delhi NCR/)).toBeInTheDocument();
+    unmount();
+
+    vi.restoreAllMocks();
+    mockTodayApis({ grap: null });
+    renderToday();
+    expect(await screen.findByText("Stay indoors today. Run the purifier.")).toBeInTheDocument();
+    expect(screen.queryByText(/GRAP Stage/)).not.toBeInTheDocument();
+  });
+
+  it("shows offline banner when offline with cached data", async () => {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: false,
+    });
+    mockTodayApis({ observed_at: "2026-11-27T11:00:00Z" });
+
+    renderToday();
+    expect(await screen.findByText("Offline, showing data from 16:30 IST")).toBeInTheDocument();
+  });
+
+  it("toggles 12-hour forecast table and renders 11:00Z as 16:30 IST", async () => {
+    const user = userEvent.setup();
+    mockTodayApis();
+    renderToday();
 
     const toggleBtn = await screen.findByRole(
       "button",
@@ -147,50 +201,7 @@ describe("TodayPage", () => {
     await user.click(toggleBtn);
     const table = screen.getByRole("table");
     expect(table).toBeInTheDocument();
-    expect(within(table).getByText("15:00")).toBeInTheDocument();
-  });
-
-  it("hides GRAP when null and shows offline banner when offline with cached data", async () => {
-    Object.defineProperty(window.navigator, "onLine", {
-      configurable: true,
-      value: false,
-    });
-
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.endsWith("/household")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(HOUSEHOLD_MOCK), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
-        );
-      }
-      if (url.includes("/air/forecast")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(FORECAST_BASE), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
-        );
-      }
-      return Promise.resolve(
-        new Response(JSON.stringify({ ...AIR_BASE, grap: null }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      );
-    });
-
-    renderToday();
-    expect(await screen.findByText("Stay indoors today. Run the purifier.")).toBeInTheDocument();
-    expect(screen.queryByText(/GRAP Stage/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Offline, showing data from/)).toBeInTheDocument();
-
-    Object.defineProperty(window.navigator, "onLine", {
-      configurable: true,
-      value: true,
-    });
+    expect(within(table).getByText("16:30")).toBeInTheDocument();
   });
 
   it("shows error alert with Retry button when /air fails and recovers on retry", async () => {

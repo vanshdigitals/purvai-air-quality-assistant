@@ -172,4 +172,56 @@ describe("PlanPage and HomeAirPage", () => {
     expect(await screen.findByText("8.5")).toBeInTheDocument();
     expect(screen.getByText("Meets target")).toBeInTheDocument();
   });
+
+  it("formats ISO UTC ventilation_hour 11:00Z as 16:30 IST", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/household")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: "hh-1",
+              mode: "local",
+              updated_at: "2026-11-27T10:00:00Z",
+              members: [{ kind: "adult", count: 1 }],
+              location: { label: "Noida", lat: 28.62, lon: 77.37 },
+              settings: {
+                theme: "system",
+                commute_mode: "metro",
+                ai_enabled: true,
+                save_chat: false,
+                reduce_motion: false,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+      if (url.includes("/home-air/tips")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              level: "poor",
+              tips: [{ tip_id: "wet_mopping", text: "Wet-mop floors instead of dry sweeping." }],
+              ventilation_hour: "2026-11-27T11:00:00Z",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 404 }));
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HomeAirPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("16:30 IST")).toBeInTheDocument();
+    expect(screen.getByText("Wet-mop floors instead of dry sweeping.")).toBeInTheDocument();
+  });
 });

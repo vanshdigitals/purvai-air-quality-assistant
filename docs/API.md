@@ -6,7 +6,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 ```json
 {"error":{"code":"VALIDATION_ERROR","message":"lat must be between -90 and 90","request_id":"r-7f3a"}}
 ```
-200/201/204 OK, created, deleted. 400 bad input (`HOUSEHOLD_HEADER_REQUIRED` when demo header missing/invalid). 413 body over 64 KB (import 5 MB). 422 schema/region error (`UNSUPPORTED_REGION`, `HOUSEHOLD_REQUIRED`). 404 not found (`NOT_FOUND`, `HOUSEHOLD_NOT_FOUND`). 409 import version conflict. 429 (`RATE_LIMIT_EXCEEDED`) with `Retry-After`. 502 provider failed, no cache (`PROVIDER_UNAVAILABLE`). 503 feature disabled in this mode. No stack traces.
+200/201/204 OK, created, deleted. 400 bad input (`HOUSEHOLD_HEADER_REQUIRED` when demo header missing/invalid). 413 body over 64 KB (import 5 MB). 422 schema/region error (`UNSUPPORTED_REGION`). 404 not found (`NOT_FOUND`, `HOUSEHOLD_NOT_FOUND`). 409 conflict / precondition (`HOUSEHOLD_REQUIRED`, import version conflict). 429 (`RATE_LIMIT_EXCEEDED`) with `Retry-After`. 502 provider failed, no cache (`PROVIDER_UNAVAILABLE`). 503 feature disabled in this mode. No stack traces.
 
 ## Endpoints
 | Method and path | Purpose | Req |
@@ -85,10 +85,10 @@ Query: `q` (`2..60` chars). Proxies Open-Meteo Geocoding filtered to `IN`, cache
 In `local` mode returns/upserts the single household (`404 HOUSEHOLD_NOT_FOUND` on `GET` before onboarding). In `demo` mode requires valid UUIDv4 `X-Purvai-Household` header (`400 HOUSEHOLD_HEADER_REQUIRED` if missing/invalid). Validates `members` (sum >= 1, unique kinds), `location` (India bounds else `422 UNSUPPORTED_REGION`), and `settings` (`theme`, `commute_mode`, `ai_enabled`, `save_chat`, `reduce_motion`).
 
 ### POST /plan
-Body `{"day":"today"|"tomorrow"}`. Requires an existing household (`422 HOUSEHOLD_REQUIRED` if not onboarded). Computes 4 IST periods (`morning`, `afternoon`, `evening`, `night`) using worst-hour AQI and persists `daily_plan` (`generated_by: "rules"`) + `plan_item` rows (`tag: "rule"`). Response: `{plan_date, day, generated_by, generated_at, source_label, periods: [{period, start, end, level, aqi, past, items}]}`.
+Body `{"day":"today"|"tomorrow"}`. Requires an existing household (`409 HOUSEHOLD_REQUIRED` if not onboarded). Computes 4 IST periods (`morning`, `afternoon`, `evening`, `night`) using worst-hour AQI and persists `daily_plan` (`generated_by: "rules"`) + `plan_item` rows (`tag: "rule"`). Response: `{plan_date, day, generated_by, generated_at, source_label, periods: [{period, start, end, level, aqi, past, items}]}`.
 
 ### POST /home-air/calc and GET /home-air/tips
-`POST /home-air/calc` validates `{length_m, width_m, height_m, cadr_m3h}` and returns `{volume_m3, ach, target_ach: 5, meets_target, cadr_needed_m3h}`. `GET /home-air/tips?lat&lon` returns `{level, tips: [{tip_id, text}], ventilation_hour}` where `ventilation_hour` picks the cleanest forecast hour between `08:00` and `20:00` IST when forecast is available.
+`POST /home-air/calc` validates `{length_m, width_m, height_m, cadr_m3h}` and returns `{volume_m3, ach, target_ach: 5, meets_target, cadr_needed_m3h}`. `GET /home-air/tips?lat&lon` returns `{level, tips: [{tip_id, text}], ventilation_hour}` where `ventilation_hour` is an ISO 8601 UTC timestamp (`| null`) for the cleanest forecast hour between `08:00` and `20:00` IST.
 
 ### POST /chat
 Request `{"message":"Can my son play outside at 5 pm?"}` (1 to 500 chars). Response: [ChatReply](AI_SCHEMAS.md#chatreply) plus `generated_by` (gemini, groq or template).

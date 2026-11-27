@@ -1,8 +1,9 @@
-"""Tests for GET/PUT /api/v1/household, demo header scoping, and 24-hour purge."""
+"""Tests for GET/PUT /api/v1/household, validation, demo isolation, and 24-hour purge."""
 
 import uuid
 from pathlib import Path
 
+import pytest
 from app.config import Settings
 from app.db.models import Household, Location
 from app.main import create_app
@@ -45,12 +46,13 @@ def _sample_payload(
 
 
 def test_local_household_create_read_replace_and_primary_location_switch(tmp_path: Path) -> None:
-    settings = Settings(
-        purvai_mode="local",
-        database_path=str(tmp_path / "hh_local.db"),
-        rate_limit_per_minute=1000,
+    app = create_app(
+        Settings(
+            purvai_mode="local",
+            database_path=str(tmp_path / "hh_local.db"),
+            rate_limit_per_minute=1000,
+        )
     )
-    app = create_app(settings)
     with TestClient(app) as client:
         missing = client.get("/api/v1/household")
         assert missing.status_code == 404
@@ -71,7 +73,6 @@ def test_local_household_create_read_replace_and_primary_location_switch(tmp_pat
         assert fetched.status_code == 200
         assert fetched.json()["id"] == body["id"]
 
-        # Update location -> previous location kept as non-primary
         updated = client.put(
             "/api/v1/household",
             json=_sample_payload(
@@ -95,33 +96,139 @@ def test_local_household_create_read_replace_and_primary_location_switch(tmp_pat
             assert sum(1 for loc in locs if loc.is_primary) == 1
 
 
-def test_household_validation_errors(local_client: TestClient) -> None:
-    # Extra field forbidden
-    bad_extra = _sample_payload()
-    bad_extra["extra_field"] = "nope"
-    assert local_client.put("/api/v1/household", json=bad_extra).status_code == 422
+def test_local_mode_single_household_ignores_header(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            purvai_mode="local",
+            database_path=str(tmp_path / "hh_single.db"),
+            rate_limit_per_minute=1000,
+        )
+    )
+    with TestClient(app) as client:
+        r1 = client.put(
+            "/api/v1/household",
+            headers={"X-Purvai-Household": str(uuid.uuid4())},
+            json=_sample_payload(label="Noida"),
+        )
+        assert r1.status_code == 200
+        r2 = client.put(
+            "/api/v1/household",
+            headers={"X-Purvai-Household": str(uuid.uuid4())},
+            json=_sample_payload(label="Delhi", lat=28.6139, lon=77.2090),
+        )
+        assert r2.status_code == 200
+        assert r2.json()["id"] == r1.json()["id"]
 
-    # Zero total members rejected
-    zero_members = _sample_payload()
-    zero_members["members"] = [{"kind": "adult", "count": 0}]
-    assert local_client.put("/api/v1/household", json=zero_members).status_code == 422
+        with Session(app.state.engine) as session:
+            assert len(session.exec(select(Household)).all()) == 1
 
-    # Duplicate member kinds rejected
-    dup_members = _sample_payload()
-    dup_members["members"] = [{"kind": "adult", "count": 1}, {"kind": "adult", "count": 1}]
-    assert local_client.put("/api/v1/household", json=dup_members).status_code == 422
 
-    # Outside India rejected with UNSUPPORTED_REGION
-    outside = _sample_payload(lat=51.5072, lon=-0.1276, city="London", admin1=None)
-    resp = local_client.put("/api/v1/household", json=outside)
+@pytest.mark.parametrize(
+    ("mutator", "expected_code"),
+    [
+        (lambda p: p.__setitem__("extra_field", "nope"), "VALIDATION_ERROR"),
+        (lambda p: p.__setitem__("members", []), "VALIDATION_ERROR"),
+        (lambda p: p.__setitem__("members", [{"kind": "adult", "count": 0}]), "VALIDATION_ERROR"),
+        (
+            lambda p: p.__setitem__(
+                "members", [{"kind": "adult", "count": 1}, {"kind": "adult", "count": 1}]
+            ),
+            "VALIDATION_ERROR",
+        ),
+        (lambda p: p.__setitem__("members", [{"kind": "alien", "count": 1}]), "VALIDATION_ERROR"),
+        (lambda p: p["location"].__setitem__("label", ""), "VALIDATION_ERROR"),
+        (lambda p: p["location"].__setitem__("label", "x" * 61), "VALIDATION_ERROR"),
+        (lambda p: p["location"].__setitem__("lat", 95.0), "VALIDATION_ERROR"),
+        (lambda p: p["location"].__setitem__("lon", 185.0), "VALIDATION_ERROR"),
+        (
+            lambda p: p["location"].update({"lat": 51.5072, "lon": -0.1276, "city": "London"}),
+            "UNSUPPORTED_REGION",
+        ),
+        (lambda p: p["settings"].__setitem__("theme", "sepia"), "VALIDATION_ERROR"),
+        (lambda p: p["settings"].__setitem__("commute_mode", "teleport"), "VALIDATION_ERROR"),
+    ],
+)
+def test_household_validation_errors(
+    local_client: TestClient,
+    mutator: object,
+    expected_code: str,
+) -> None:
+    payload = _sample_payload()
+    assert callable(mutator)
+    mutator(payload)
+    resp = local_client.put("/api/v1/household", json=payload)
     assert resp.status_code == 422
-    assert resp.json()["error"]["code"] == "UNSUPPORTED_REGION"
+    assert resp.json()["error"]["code"] == expected_code
 
 
-def test_demo_household_header_isolation_and_24h_purge(tmp_path: Path) -> None:
-    db_file = tmp_path / "hh_demo.db"
+def test_demo_household_missing_or_malformed_header_returns_400(tmp_path: Path) -> None:
+    app = create_app(
+        Settings(
+            purvai_mode="demo",
+            database_path=str(tmp_path / "hh_demo_hdr.db"),
+            rate_limit_per_minute=1000,
+        )
+    )
+    with TestClient(app) as client:
+        no_hdr = client.get("/api/v1/household")
+        assert no_hdr.status_code == 400
+        assert no_hdr.json()["error"]["code"] == "HOUSEHOLD_HEADER_REQUIRED"
+
+        bad_hdr = client.get("/api/v1/household", headers={"X-Purvai-Household": "not-a-uuid"})
+        assert bad_hdr.status_code == 400
+        assert bad_hdr.json()["error"]["code"] == "HOUSEHOLD_HEADER_REQUIRED"
+
+        put_no_hdr = client.put("/api/v1/household", json=_sample_payload())
+        assert put_no_hdr.status_code == 400
+        assert put_no_hdr.json()["error"]["code"] == "HOUSEHOLD_HEADER_REQUIRED"
+
+
+def test_demo_household_cross_household_isolation(tmp_path: Path) -> None:
     id_a = str(uuid.uuid4())
     id_b = str(uuid.uuid4())
+    app = create_app(
+        Settings(
+            purvai_mode="demo",
+            database_path=str(tmp_path / "hh_demo_iso.db"),
+            rate_limit_per_minute=1000,
+        )
+    )
+    with TestClient(app) as client:
+        assert (
+            client.get("/api/v1/household", headers={"X-Purvai-Household": id_a}).status_code == 404
+        )
+
+        res_a = client.put(
+            "/api/v1/household",
+            headers={"X-Purvai-Household": id_a},
+            json=_sample_payload(label="Noida Home", theme="dark"),
+        )
+        assert res_a.status_code == 200
+        assert res_a.json()["id"] == id_a
+
+        # Household B cannot see Household A
+        assert (
+            client.get("/api/v1/household", headers={"X-Purvai-Household": id_b}).status_code == 404
+        )
+
+        res_b = client.put(
+            "/api/v1/household",
+            headers={"X-Purvai-Household": id_b},
+            json=_sample_payload(label="Delhi Home", theme="light"),
+        )
+        assert res_b.status_code == 200
+
+        got_a = client.get("/api/v1/household", headers={"X-Purvai-Household": id_a}).json()
+        got_b = client.get("/api/v1/household", headers={"X-Purvai-Household": id_b}).json()
+        assert got_a["location"]["label"] == "Noida Home"
+        assert got_a["settings"]["theme"] == "dark"
+        assert got_b["location"]["label"] == "Delhi Home"
+        assert got_b["settings"]["theme"] == "light"
+
+
+def test_demo_household_24h_purge(tmp_path: Path) -> None:
+    db_file = tmp_path / "hh_demo_purge.db"
+    id_a = str(uuid.uuid4())
 
     with freeze_time("2026-11-25T10:00:00Z"):
         app = create_app(
@@ -132,51 +239,12 @@ def test_demo_household_header_isolation_and_24h_purge(tmp_path: Path) -> None:
             )
         )
         with TestClient(app) as client:
-            no_hdr = client.get("/api/v1/household")
-            assert no_hdr.status_code == 400
-            assert no_hdr.json()["error"]["code"] == "HOUSEHOLD_HEADER_REQUIRED"
-
-            bad_hdr = client.get("/api/v1/household", headers={"X-Purvai-Household": "not-a-uuid"})
-            assert bad_hdr.status_code == 400
-            assert bad_hdr.json()["error"]["code"] == "HOUSEHOLD_HEADER_REQUIRED"
-
-            assert (
-                client.get("/api/v1/household", headers={"X-Purvai-Household": id_a}).status_code
-                == 404
-            )
-
             res_a = client.put(
                 "/api/v1/household",
                 headers={"X-Purvai-Household": id_a},
-                json=_sample_payload(label="Noida Home", theme="dark"),
+                json=_sample_payload(label="Noida Home"),
             )
             assert res_a.status_code == 200
-            assert res_a.json()["id"] == id_a
-
-            # Household B cannot see Household A
-            assert (
-                client.get("/api/v1/household", headers={"X-Purvai-Household": id_b}).status_code
-                == 404
-            )
-
-            res_b = client.put(
-                "/api/v1/household",
-                headers={"X-Purvai-Household": id_b},
-                json=_sample_payload(label="Delhi Home", theme="light"),
-            )
-            assert res_b.status_code == 200
-            assert (
-                client.get("/api/v1/household", headers={"X-Purvai-Household": id_a}).json()[
-                    "location"
-                ]["label"]
-                == "Noida Home"
-            )
-            assert (
-                client.get("/api/v1/household", headers={"X-Purvai-Household": id_b}).json()[
-                    "location"
-                ]["label"]
-                == "Delhi Home"
-            )
 
     # 25 hours later, restart purges expired demo households
     with freeze_time("2026-11-26T11:00:00Z"):

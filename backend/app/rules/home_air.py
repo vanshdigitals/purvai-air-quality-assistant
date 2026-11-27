@@ -1,10 +1,14 @@
 """Home Air ACH calculator and deterministic indoor tips catalogue."""
 
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.rules.catalogue import Category
 
 TARGET_ACH = 5
+IST_ZONE = ZoneInfo("Asia/Kolkata")
 
 
 class HomeAirCalcRequest(BaseModel):
@@ -112,8 +116,11 @@ def get_home_air_tips(level: Category, ventilation_hour: str | None = None) -> H
             continue
         text = base_text
         if tip_id == "ventilate_low_hour" and ventilation_hour is not None:
+            dt = datetime.fromisoformat(ventilation_hour.replace("Z", "+00:00"))
+            dt_ist = (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt).astimezone(IST_ZONE)
+            ist_label = f"{dt_ist.hour:02d}:{dt_ist.minute:02d} IST"
             text = (
-                f"Air the room briefly at the cleanest forecast hour ({ventilation_hour}), "
+                f"Air the room briefly at the cleanest forecast hour ({ist_label}), "
                 "then close windows."
             )
         tips.append(HomeAirTip(tip_id=tip_id, text=text))

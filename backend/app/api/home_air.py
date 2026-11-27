@@ -79,12 +79,16 @@ async def get_home_air_tips_endpoint(
             daytime = [
                 h
                 for h in forecast.hours
-                if 8 <= parse_utc_iso(h.time).astimezone(IST_ZONE).hour <= 20
+                if (8, 0)
+                <= (
+                    (dt := parse_utc_iso(h.time).astimezone(IST_ZONE)).hour,
+                    dt.minute,
+                )
+                <= (20, 0)
             ]
             if daytime:
                 best = min(daytime, key=lambda h: h.aqi)
-                best_ist = parse_utc_iso(best.time).astimezone(IST_ZONE)
-                ventilation_hour = f"{best_ist.hour:02d}:00 IST"
+                ventilation_hour = best.time
         except ProviderError:
             ventilation_hour = None
 

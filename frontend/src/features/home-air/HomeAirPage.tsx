@@ -8,6 +8,7 @@ import {
   fetchHousehold,
   type HomeAirCalcRequest,
 } from "../../lib/api";
+import { formatIstTimeWithZone } from "../../lib/datetime";
 
 interface FieldErrors {
   length_m?: string;
@@ -295,7 +296,9 @@ export default function HomeAirPage() {
                 <div>
                   <div className="text-sm font-medium text-text">
                     Cleanest daytime ventilation window:{" "}
-                    <span className="tabular-data">{tipsQuery.data.ventilation_hour}</span>
+                    <span className="tabular-data">
+                      {formatIstTimeWithZone(tipsQuery.data.ventilation_hour)}
+                    </span>
                   </div>
                   <div className="text-xs text-muted">Based on 12-hour forecast</div>
                 </div>
