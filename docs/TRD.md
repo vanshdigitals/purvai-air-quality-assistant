@@ -47,8 +47,8 @@ Rejected: WAQI (no caching or redistribution), Google Air Quality API (billing; 
 ## Hosting
 | Host | Free type | Persistent SQLite | Sleep | Verdict |
 |---|---|---|---|---|
-| Cloud Run | Permanent tier, billing required | No: in-memory FS; FUSE and NFS lack locking | Scale to zero | Demo (temporary) |
-| Render | Permanent free web service | No: ephemeral; disks paid (USD 0.25/GB), not on free | Spins down after 15 consecutive idle minutes; about a minute to spin back up (Render FAQ) | Backup host |
+| Cloud Run | Option (billing unavailable: `OR_BACR2_59`) | No: in-memory FS; FUSE and NFS lack locking | Scale to zero | Demo (optional) |
+| Render | Permanent free web service | No: ephemeral; disks paid (USD 0.25/GB), not on free | Spins down after 15 consecutive idle minutes; about a minute to spin back up (Render FAQ) | Primary demo host (Cloud Run billing unavailable) |
 | Railway | USD 5 trial for 30 days, then USD 1/month credit (secondary) | Paid volumes | n/a | Rejected |
 | Fly.io | Conflict: docs (5 Nov) no free tier; 23 Nov post announced USD 5/month Free plan (secondary) | Volumes | n/a | Re-check later |
 | HF Spaces | Docker Spaces need a paid plan | No: 50 GB non-persistent | 48 h | Rejected |

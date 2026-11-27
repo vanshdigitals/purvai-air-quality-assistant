@@ -60,7 +60,7 @@ config/grap.json  frontend/src/{app,components,features,lib,styles}/  frontend/t
 ```
 
 ## Status and limitations
-Phase 6 complete; accessibility, security headers & chunked body limits, rate limiting, PERF-01/PERF-03/NFR-01 checks, Dependabot, and full test gates verified. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
+Phase 7: deploy files ready; live URL pending. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
 
 ## Documentation research report (25 November 2026)
 1. **Structure:** `purvai/` with 13 root files plus `design/PURVAI_DESIGN_SYSTEM.md`, exactly 14.
