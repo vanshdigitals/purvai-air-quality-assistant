@@ -174,6 +174,7 @@ test.describe("Purvai Phase 6 A11Y & Performance", () => {
     for (let i = 0; i < 3; i++) {
       await page.goto("/today", { waitUntil: "load" });
       await expect(page.getByText(/AQI/i).first()).toBeVisible();
+      await page.waitForTimeout(150);
       const lcp = await page.evaluate(
         () => (window as unknown as { __lcpMs?: number }).__lcpMs ?? 0
       );

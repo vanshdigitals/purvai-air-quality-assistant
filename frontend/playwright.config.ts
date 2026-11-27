@@ -32,6 +32,7 @@ export default defineConfig({
       PURVAI_MODE: "local",
       PURVAI_FAKE_PROVIDERS: "true",
       DATABASE_PATH: tempDbPath,
+      RATE_LIMIT_PER_MINUTE: "10000",
     },
   },
   projects: [
