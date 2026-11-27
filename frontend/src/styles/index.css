@@ -234,7 +234,7 @@
 
 .purvai-btn-danger {
   background-color: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
 }
 
 .purvai-btn-danger-subtle {

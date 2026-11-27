@@ -228,9 +228,18 @@ async def generate_chat_reply(
         )
 
     # SAF-04: symptoms are in scope; server enforces needs_doctor_note and clears out_of_scope
+    # A7: AI replies cannot claim tag="rule"; enforce tag="ai_wording" on Gemini/Groq outputs
+    updates: dict[str, object] = {}
+    if any(rec.tag != "ai_wording" for rec in ai_data.recommendations):
+        updates["recommendations"] = [
+            rec.model_copy(update={"tag": "ai_wording"}) for rec in ai_data.recommendations
+        ]
     if has_symptom_keywords(user_message) or ai_data.needs_doctor_note:
         if not ai_data.needs_doctor_note or ai_data.out_of_scope:
-            ai_data = ai_data.model_copy(update={"needs_doctor_note": True, "out_of_scope": False})
+            updates["needs_doctor_note"] = True
+            updates["out_of_scope"] = False
+    if updates:
+        ai_data = ai_data.model_copy(update=updates)
 
     return GatewayResult(
         data=ai_data,

@@ -49,6 +49,7 @@
 
   /* Semantic */
   --danger: #b42318;
+  --on-danger: #ffffff;
   --danger-tint: #fef3f2;
   --warning: #b54708;
   --warning-tint: #fffaeb;
@@ -123,6 +124,7 @@
   --focus-ring: #7fb2e5;
 
   --danger: #f97066;
+  --on-danger: #0b1220;
   --danger-tint: #322633;
   --warning: #fdb022;
   --warning-tint: #332f2a;

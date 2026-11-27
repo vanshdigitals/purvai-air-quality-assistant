@@ -60,6 +60,7 @@ class ChatResponse(BaseModel):
     out_of_scope: bool
     generated_by: Literal["gemini", "groq", "template"]
     note: str | None = None
+    grounding_note: str | None = None
     aqi: int
     category: str
     source_label: Literal["Measured", "Modelled", "Estimated"]
@@ -210,6 +211,25 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
             )
             session.commit()
 
+        answer_lower = reply.answer.lower()
+        grounding_parts: list[str] = []
+        if air.source_label == "Modelled" and "modelled" not in answer_lower:
+            grounding_parts.append("This is a modelled estimate.")
+        if air.stale:
+            age_hours = max(1, round(air.age_minutes / 60))
+            age_tokens = (
+                f"{age_hours} hour",
+                f"{age_hours} hr",
+                f"{air.age_minutes} min",
+                "hours old",
+                "hour old",
+                "minutes old",
+            )
+            if not any(tok in answer_lower for tok in age_tokens):
+                unit = "hour" if age_hours == 1 else "hours"
+                grounding_parts.append(f"Data is {age_hours} {unit} old.")
+        grounding_note = " ".join(grounding_parts) if grounding_parts else None
+
         return ChatResponse(
             schema_version=reply.schema_version,
             verdict_level=reply.verdict_level,
@@ -220,6 +240,7 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
             out_of_scope=reply.out_of_scope,
             generated_by=gateway_res.generated_by,
             note=gateway_res.note,
+            grounding_note=grounding_note,
             aqi=air.aqi,
             category=air.category,
             source_label=air.source_label,

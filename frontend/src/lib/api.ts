@@ -240,6 +240,7 @@ export interface ChatResponse {
   out_of_scope: boolean;
   generated_by: "gemini" | "groq" | "template";
   note?: string | null;
+  grounding_note?: string | null;
   aqi: number;
   category: AqiCategory;
   source_label: "Measured" | "Modelled" | "Estimated";

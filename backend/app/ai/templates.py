@@ -1,6 +1,7 @@
 """Deterministic rule-catalogue fallback templates and symptom detection (SAF-04)."""
 
 import re
+import unicodedata
 from typing import cast
 
 from app.ai.schemas.v1.models import (
@@ -20,6 +21,8 @@ from app.rules.home_air import get_home_air_tips
 AI_UNAVAILABLE_NOTE = "AI unavailable, showing standard advice"
 AI_DISABLED_NOTE = "AI is off. Showing standard advice."
 
+_ZERO_WIDTH_RE = re.compile(r"[\u200b-\u200d\u2060\ufeff]")
+
 SYMPTOM_KEYWORDS: tuple[str, ...] = (
     "cough",
     "coughing",
@@ -38,15 +41,37 @@ SYMPTOM_KEYWORDS: tuple[str, ...] = (
     "saans",
 )
 
+_SYMPTOM_PATTERNS: tuple[str, ...] = (
+    r"\bcough\w*",
+    r"\bwheez\w*",
+    r"\bbreathless\w*",
+    r"\bshort\W*of\W*breath\b",
+    r"\bshortness\s+of\s+breath\b",
+    r"\basthma\w*",
+    r"\bchest\s+(?:pain|tight\w*|hurt\w*|heav\w*)",
+    r"\bbreathing\s+(?:problem|difficult\w*|trouble|issue)\w*",
+    r"\bdifficulty\s+breathing\b",
+    r"\bcan'?t\s+breathe\b",
+    r"\bcannot\s+breathe\b",
+    r"\bkhansi\b",
+    r"\bkhaansi\b",
+    r"\bsaans\b",
+    r"\bdam\s+ghut\w*",
+    r"\bphlegm\b",
+)
+
 _SYMPTOM_RE = re.compile(
-    r"(?<!\w)(?:" + "|".join(re.escape(k) for k in SYMPTOM_KEYWORDS) + r")(?!\w)",
+    "(?:" + "|".join(_SYMPTOM_PATTERNS) + ")",
     flags=re.IGNORECASE,
 )
 
 
 def has_symptom_keywords(user_message: str) -> bool:
     """Return True when the user mentions respiratory or chest symptom keywords."""
-    return bool(_SYMPTOM_RE.search(user_message))
+    nfkc = unicodedata.normalize("NFKC", user_message)
+    no_zw = _ZERO_WIDTH_RE.sub("", nfkc)
+    normalised = re.sub(r"\s+", " ", no_zw).strip().lower()
+    return bool(_SYMPTOM_RE.search(normalised))
 
 
 def _why_for_action(action_id: str, context: AIContext) -> str:

@@ -345,6 +345,12 @@ export default function AskPage() {
                     GRAP Stage {reply.grap_stage}
                   </span>
                 )}
+
+                {reply.grounding_note && (
+                  <span className="rounded-full border border-border bg-subtle px-2.5 py-1 text-xs font-medium text-text-2">
+                    {reply.grounding_note}
+                  </span>
+                )}
               </div>
 
               {reply.recommendations.length > 0 && (
