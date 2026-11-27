@@ -24,7 +24,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 | GET /impact/summary?days=7 | Totals | FR-11 |
 | POST /reports/pdf, /reports/csv | Files | FR-13 |
 | GET /data/export; POST /data/import?dry_run= | JSON | FR-14 |
-| POST /db/backup, /db/restore | Local only, else 503 | FR-15 |
+| POST /db/backup, /db/restore; GET /db/backups | Local only, else 503 | FR-15 |
 | DELETE /data | Body `{"confirm":"DELETE"}` | FR-16 |
 
 ### GET /health

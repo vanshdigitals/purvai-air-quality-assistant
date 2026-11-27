@@ -12,7 +12,7 @@
 | ORM | SQLModel 0.0.50 on SQLAlchemy 2.1.9 | Pydantic-native; Core when needed |
 | Migrations | Alembic 1.20.1, `render_as_batch=True` | SQLite ALTER limits |
 | Rate limit | slowapi 0.1.10 | One instance is enough |
-| PDF | fpdf2 (LGPL-3.0) + matplotlib (Phase 5) | No system deps; ReportLab backup; WeasyPrint rejected |
+| PDF | fpdf2 2.8.2 (LGPL-3.0) | No system deps; ReportLab backup; WeasyPrint rejected |
 | Tests | pytest 9.2.0, respx 0.23.1, freezegun 1.5.5, Vitest 5.1.2, RTL 16.3.3, Playwright 1.65.1, `@axe-core/playwright` 4.14.1 | [TESTING.md](TESTING.md) |
 
 Next.js rejected (second Node server). Phase 1 versions pinned (A-04); Recharts and fpdf2 deferred to Phases 3 and 5.
@@ -21,7 +21,7 @@ Next.js rejected (second Node server). Phase 1 versions pinned (A-04); Recharts 
 TC-01 zero budget. TC-02 no Supabase, Firebase or paid DB. TC-03 no auth in MVP. TC-04 one container, one process, max one instance. TC-05 single branch, repo under 10 MB (unverified rule, followed).
 
 ## Runtime and performance
-Python 3.12, uvicorn one worker, SQLite at `DATABASE_PATH`, config via pydantic-settings (`.env` locally, Secret Manager on Cloud Run). Settings include `CPCB_TIMEOUT_S` (default `20`, range `5` to `60`), `AI_TIMEOUT_S` (default `15`, range `5` to `30`), `AI_MODEL` (default `gemini-3.5-flash-lite`, verified present in `google-genai` `models.list()` alongside `gemini-3.1-flash-lite`), `AI_FALLBACK_MODEL` (`openai/gpt-oss-20b`; `400` treated as provider failure), and `PURVAI_FAKE_PROVIDERS` (`false` default; local test-only fixture seam, refused in demo mode). PERF-01 cached `/air` p95 under 300 ms. PERF-02 AI timeout 15 s, one fallback, then template. PERF-03 JS under 250 KB gzipped. PERF-04 air cache 30 min.
+Python 3.12, uvicorn one worker, SQLite at `DATABASE_PATH`, config via pydantic-settings (`.env` locally, Secret Manager on Cloud Run). Settings include `CPCB_TIMEOUT_S` (default `20`, range `5` to `60`), `AI_TIMEOUT_S` (default `15`, range `5` to `30`), `AI_MODEL` (default `gemini-3.5-flash-lite`, verified present in `google-genai` `models.list()` alongside `gemini-3.1-flash-lite`), `AI_FALLBACK_MODEL` (`openai/gpt-oss-20b`; `400` treated as provider failure), and `PURVAI_FAKE_PROVIDERS` (`false` default; local test-only fixture seam, refused in demo mode), and `CO2_ESTIMATES_ENABLED` (`true` default). PERF-01 cached `/air` p95 under 300 ms. PERF-02 AI timeout 15 s, one fallback, then template. PERF-03 JS under 250 KB gzipped. PERF-04 air cache 30 min.
 
 ## External services
 | Service | Purpose | Status | Key | Limits | Terms | Fallback |

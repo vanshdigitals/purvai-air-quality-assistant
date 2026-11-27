@@ -16,7 +16,7 @@ def test_health_local_mode(local_client: TestClient) -> None:
     assert body["database"] == {
         "status": "ok",
         "storage": "persistent",
-        "schema_revision": "0002_location_admin",
+        "schema_revision": "0003_emission_factor_seed",
     }
     assert isinstance(body["time"], str) and body["time"].endswith("Z")
     assert ".db" not in response.text
@@ -30,7 +30,7 @@ def test_health_demo_mode(demo_client: TestClient) -> None:
     assert body["status"] == "ok"
     assert body["mode"] == "demo"
     assert body["database"]["storage"] == "temporary"
-    assert body["database"]["schema_revision"] == "0002_location_admin"
+    assert body["database"]["schema_revision"] == "0003_emission_factor_seed"
 
 
 def test_health_degraded_when_db_check_fails(
