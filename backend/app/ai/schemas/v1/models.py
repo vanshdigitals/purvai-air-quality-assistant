@@ -211,6 +211,9 @@ def _normalise_schema_node(node: Any) -> Any:
     for key, val in node.items():
         if key in {"pattern", "format", "default"}:
             continue
+        if key == "const":
+            out["enum"] = [val]
+            continue
         out[key] = _normalise_schema_node(val)
 
     if out.get("type") == "object" or "properties" in out:

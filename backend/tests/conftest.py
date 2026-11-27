@@ -3,9 +3,27 @@
 from pathlib import Path
 
 import pytest
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.main import create_app
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _isolate_env_from_dotenv(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent root .env from leaking real API keys into automated unit tests."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    for key in (
+        "DATA_GOV_IN_API_KEY",
+        "GEMINI_API_KEY",
+        "GROQ_API_KEY",
+        "AI_MODEL",
+        "AI_PROVIDER",
+        "AI_FALLBACK_PROVIDER",
+        "AI_FALLBACK_MODEL",
+        "AI_TIMEOUT_S",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    get_settings.cache_clear()
 
 
 @pytest.fixture

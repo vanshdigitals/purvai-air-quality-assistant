@@ -186,7 +186,8 @@ def test_provider_json_schemas_obey_s1_to_s4(model_cls: type[BaseModel]) -> None
         if not isinstance(node, dict):
             return
 
-        # S-4: no pattern or format
+        # S-3 / S-4: enum (no const), no pattern or format
+        assert "const" not in node
         assert "pattern" not in node
         assert "format" not in node
 
