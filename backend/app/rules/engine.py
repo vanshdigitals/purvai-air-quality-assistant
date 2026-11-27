@@ -12,6 +12,7 @@ from app.rules.catalogue import (
     OUTDOOR_WORKER_CATEGORIES,
     SENSITIVE_ACTIONS,
     SENSITIVE_MEMBER_KINDS,
+    SUPERSEDES,
     Category,
 )
 
@@ -56,24 +57,22 @@ def compute_verdict(category: Category, member_kinds: Iterable[str]) -> Verdict:
     candidates: list[str] = []
     if has_sensitive:
         candidates.extend(SENSITIVE_ACTIONS[category])
-    candidates.extend(GENERAL_ACTIONS[category])
     if has_outdoor_worker and category in OUTDOOR_WORKER_CATEGORIES:
         candidates.append("mask_and_breaks")
+    candidates.extend(GENERAL_ACTIONS[category])
 
     deduped: list[str] = []
     seen: set[str] = set()
     for action_id in candidates:
-        # "stay_indoors" supersedes "no_outdoor_exercise" so N95 guidance fits within 3 actions.
-        if action_id == "no_outdoor_exercise" and "stay_indoors" in seen:
-            continue
         if action_id not in seen:
             seen.add(action_id)
             deduped.append(action_id)
-        if len(deduped) == 3:
-            break
+
+    superseded: set[str] = {sup for action_id in deduped for sup in SUPERSEDES.get(action_id, ())}
+    filtered = [action_id for action_id in deduped if action_id not in superseded][:3]
 
     actions = tuple(
-        VerdictAction(action_id=aid, text=ACTION_TEXTS[aid], tag="rule") for aid in deduped
+        VerdictAction(action_id=aid, text=ACTION_TEXTS[aid], tag="rule") for aid in filtered
     )
     headline = " ".join(action.text for action in actions[:2])
 
@@ -81,6 +80,6 @@ def compute_verdict(category: Category, member_kinds: Iterable[str]) -> Verdict:
         level=category,
         household_level=household_level,
         headline=headline,
-        action_ids=tuple(deduped),
+        action_ids=tuple(filtered),
         actions=actions,
     )

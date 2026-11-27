@@ -341,7 +341,11 @@ async def _try_cpcb(
 
     api_key = settings.data_gov_in_api_key.get_secret_value()
     try:
-        readings = await fetch_cpcb_stations(api_key, client=http_client)
+        readings = await fetch_cpcb_stations(
+            api_key,
+            client=http_client,
+            timeout_s=settings.cpcb_timeout_s,
+        )
     except ProviderError as exc:
         logger.warning(json.dumps({"event": "cpcb_fetch_failed", "reason": str(exc)}))
         return None

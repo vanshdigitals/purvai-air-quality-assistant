@@ -37,7 +37,7 @@ erDiagram
 | emission_factor | id TEXT PK, mode, g_co2e_per_pkm REAL, basis, source, version | UNIQUE(mode, version) |
 | activity_log | id PK, household_id FK, kind, mode, replaced_mode, distance_km, hours, factor_id FK, co2_saved_g (all nullable except kind), occurred_at | CHECK distance_km BETWEEN 0 AND 500; idx (household_id, occurred_at) |
 | report | id PK, household_id FK, format, days, created_at, byte_size | CHECK format IN ('pdf','csv','json'); metadata only |
-Child FKs use `ON DELETE CASCADE`. Timestamps are ISO 8601 UTC TEXT set by the server. Impact lives on `activity_log` with its factor ID, so no impact table. `aqi_observation` is the shared air cache.
+Child FKs use `ON DELETE CASCADE`. Timestamps are ISO 8601 UTC TEXT set by the server. Impact lives on `activity_log` with its factor ID, so no impact table. `aqi_observation` is the shared air cache; its `pollutants` JSON column stores `{"values": {"pm25": ...}, "station_name": ..., "city": ..., "lat": ..., "lon": ...}` (with station metadata omitted for `open_meteo` rows).
 
 ## Seed: emission_factor ITF-2023 (life-cycle gCO2e per passenger-km)
 car_petrol 162, scooter 74, motorcycle 65, auto_cng 75, auto_diesel 104, bus_diesel 28, bus_diesel_ac 46, bus_cng 31, metro 24, walk 0, cycle 0. Source: ITF/OECD "Life-Cycle Assessment of Passenger Transport: An Indian Case Study" (2023). India GHG Program 2015 tailpipe factors (city bus 0.015161 kg CO2/pkm) are a cross-check only. Shown after A-02.

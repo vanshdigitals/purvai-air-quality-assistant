@@ -1,9 +1,16 @@
 """Unit tests for CPCB NAQI breakpoints, truncation, interpolation, and overall AQI."""
 
+import math
+
 import pytest
 from app.aqi.breakpoints import CPCB_BREAKPOINTS, PollutantId
 from app.aqi.calculator import category_for_aqi, compute_overall_aqi, compute_sub_index
-from app.aqi.normalise import normalise_open_meteo_value, truncate_for_lookup
+from app.aqi.normalise import (
+    map_cpcb_pollutant,
+    normalise_cpcb_value,
+    normalise_open_meteo_value,
+    truncate_for_lookup,
+)
 
 
 @pytest.mark.parametrize("pollutant", list(CPCB_BREAKPOINTS.keys()))
@@ -88,3 +95,24 @@ def test_open_meteo_co_unit_conversion_and_category_mapping() -> None:
     assert category_for_aqi(201) == "poor"
     assert category_for_aqi(301) == "very_poor"
     assert category_for_aqi(401) == "severe"
+
+
+def test_normalise_units_aliases_and_invalid_values() -> None:
+    assert map_cpcb_pollutant("PM2.5") == "pm25"
+    assert map_cpcb_pollutant("PM25") == "pm25"
+    assert map_cpcb_pollutant("OZONE") == "o3"
+    assert map_cpcb_pollutant("NH3") is None
+    assert map_cpcb_pollutant("") is None
+    assert map_cpcb_pollutant(None) is None
+
+    # CO in ug/m3 via pollutant_unit -> converted to mg/m3
+    assert normalise_cpcb_value("co", 2500.0, "µg/m³") == pytest.approx(2.5)
+    assert normalise_cpcb_value("co", 1800.0, "ug/m3") == pytest.approx(1.8)
+    assert normalise_cpcb_value("co", 2.1, "mg/m³") == pytest.approx(2.1)
+    assert normalise_cpcb_value("pm25", -5.0, "µg/m³") is None
+    assert normalise_cpcb_value("pm25", math.nan) is None
+    assert normalise_open_meteo_value("pm25", -1.0) is None
+    assert normalise_open_meteo_value("pm25", math.inf) is None
+
+    with pytest.raises(ValueError):
+        truncate_for_lookup("pm25", -0.1)

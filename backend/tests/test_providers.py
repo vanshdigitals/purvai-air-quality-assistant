@@ -82,3 +82,69 @@ def test_parse_open_meteo_fixture() -> None:
     assert reading.observed_at == datetime(2026, 11, 25, 3, 0, tzinfo=UTC)
     assert reading.pollutants["pm25"] == pytest.approx(152.4)
     assert reading.pollutants["co"] == pytest.approx(3.794)
+
+
+def test_parse_cpcb_ist_midnight_aliases_and_edge_cases() -> None:
+    records = [
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "PM2.5",
+            "avg_value": "120",
+            "unit": "µg/m³",
+        },
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "CO",
+            "avg_value": "2000",
+            "unit": "ug/m3",
+        },
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "NO2",
+            "avg_value": "NA",
+        },
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "SO2",
+            "avg_value": "",
+        },
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "PM10",
+            "avg_value": "-10",
+        },
+        {
+            "station": "Test Station",
+            "city": "Delhi",
+            "lat": "28.61",
+            "lon": "77.20",
+            "last_update": "26-11-2026 01:15:00",
+            "pollutant_id": "PB",
+            "avg_value": "5",
+        },
+    ]
+    readings = parse_cpcb_records(records)
+    assert len(readings) == 1
+    # 26-11-2026 01:15:00 IST == 2026-11-25T19:45:00Z UTC (across midnight)
+    assert readings[0].observed_at == datetime(2026, 11, 25, 19, 45, tzinfo=UTC)
+    assert readings[0].pollutants == {"pm25": 120.0, "co": 2.0}

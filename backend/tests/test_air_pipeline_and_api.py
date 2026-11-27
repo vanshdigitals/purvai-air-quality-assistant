@@ -1,5 +1,6 @@
 """Integration tests for AQI pipeline, caching, fallbacks, GRAP, and /api/v1/air."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -288,3 +289,31 @@ def test_validation_422_unsupported_region_and_demo_household_scoping(tmp_path: 
         assert resp_b.status_code == 200
         assert resp_a.json()["verdict"]["household_level"] == "severe"
         assert resp_b.json()["verdict"]["household_level"] == "very_poor"
+
+
+@respx.mock
+def test_cpcb_timeout_falls_back_to_open_meteo_in_same_request(tmp_path: Path) -> None:
+    async def slow_cpcb(_request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.3)
+        return httpx.Response(200, json=_load_fixture("cpcb_noida_synthetic.json"))
+
+    respx.get(CPCB_RESOURCE_URL).mock(side_effect=slow_cpcb)
+    om_route = respx.get(OPEN_METEO_AIR_URL).mock(
+        return_value=httpx.Response(200, json=_load_fixture("open_meteo_noida.json"))
+    )
+
+    settings = Settings(
+        purvai_mode="local",
+        database_path=str(tmp_path / "timeout.db"),
+        data_gov_in_api_key="test-cpcb-key",  # type: ignore[arg-type]
+        cpcb_timeout_s=5.0,
+        rate_limit_per_minute=1000,
+    )
+    # Override cpcb_timeout_s post-construction via model_copy to test sub-second overall deadline
+    fast_settings = settings.model_copy(update={"cpcb_timeout_s": 0.05})
+    app = create_app(fast_settings)
+    with TestClient(app) as client:
+        resp = client.get("/api/v1/air?lat=28.62&lon=77.37")
+        assert resp.status_code == 200
+        assert om_route.call_count == 1
+        assert resp.json()["source_label"] == "Modelled"

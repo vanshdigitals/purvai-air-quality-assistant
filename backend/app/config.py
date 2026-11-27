@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     cors_dev_origin: str = "http://localhost:5173"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     rate_limit_per_minute: int = 120
+    cpcb_timeout_s: float = Field(default=20.0, ge=5.0, le=60.0)
 
     data_gov_in_api_key: SecretStr | None = None
     ai_provider: str = "gemini"

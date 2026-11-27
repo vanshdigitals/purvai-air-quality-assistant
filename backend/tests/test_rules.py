@@ -43,15 +43,41 @@ def test_verdict_matrix_all_categories_and_member_flags(
     assert len(verdict.action_ids) == len(set(verdict.action_ids))
     assert len(verdict.actions) == len(verdict.action_ids)
 
-    expected_first = SENSITIVE_ACTIONS[category][0] if sensitive else GENERAL_ACTIONS[category][0]
+    if sensitive:
+        expected_first = SENSITIVE_ACTIONS[category][0]
+    elif worker and category in {"poor", "very_poor", "severe"}:
+        expected_first = "mask_and_breaks"
+    else:
+        expected_first = GENERAL_ACTIONS[category][0]
     assert verdict.action_ids[0] == expected_first
 
     expected_headline = " ".join(ACTION_TEXTS[aid] for aid in verdict.action_ids[:2])
     assert verdict.headline == expected_headline
 
     if worker and category in {"poor", "very_poor", "severe"}:
-        if not sensitive and category in {"poor", "very_poor", "severe"}:
-            assert "mask_and_breaks" in verdict.action_ids
+        assert "mask_and_breaks" in verdict.action_ids
+    elif worker and category == "moderate":
+        assert "mask_and_breaks" not in verdict.action_ids
+
+
+@pytest.mark.parametrize("category", ["poor", "very_poor", "severe"])
+def test_mixed_child_and_outdoor_worker_keeps_mask_and_breaks(category: Category) -> None:
+    verdict = compute_verdict(category, ["child_u12", "outdoor_worker"])
+    assert "mask_and_breaks" in verdict.action_ids
+
+
+def test_outdoor_worker_alone_at_moderate_omits_mask_and_breaks() -> None:
+    verdict = compute_verdict("moderate", ["outdoor_worker"])
+    assert verdict.action_ids == ("reduce_long_exertion",)
+
+
+def test_supersedes_rule_excludes_no_outdoor_exercise_when_stay_indoors() -> None:
+    from app.rules.catalogue import SUPERSEDES
+
+    assert SUPERSEDES == {"stay_indoors": ("no_outdoor_exercise",)}
+    verdict = compute_verdict("very_poor", ["child_u12"])
+    assert "stay_indoors" in verdict.action_ids
+    assert "no_outdoor_exercise" not in verdict.action_ids
 
 
 def test_documented_example_aqi_312_with_child() -> None:

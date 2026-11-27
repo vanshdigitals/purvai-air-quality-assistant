@@ -1,6 +1,8 @@
 """CPCB data.gov.in client and parser (resource 3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69)."""
 
+import asyncio
 import hashlib
+import time
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -148,15 +150,20 @@ async def fetch_cpcb_stations(
     *,
     client: httpx.AsyncClient | None = None,
     limit: int = PAGE_LIMIT,
+    timeout_s: float = 20.0,
 ) -> list[CpcbStationReading]:
-    """Fetch and paginate all CPCB station records from data.gov.in (10 s timeout)."""
+    """Fetch and paginate all CPCB station records within an overall timeout budget."""
     all_records: list[dict[str, Any]] = []
-    offset = 0
     owns_client = client is None
-    http_client = client or httpx.AsyncClient(timeout=10.0)
+    http_client = client or httpx.AsyncClient(timeout=timeout_s)
 
-    try:
+    async def _fetch_all_pages() -> None:
+        offset = 0
+        deadline = time.monotonic() + timeout_s
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError("CPCB provider timed out")
             try:
                 response = await http_client.get(
                     CPCB_RESOURCE_URL,
@@ -166,7 +173,7 @@ async def fetch_cpcb_stations(
                         "limit": limit,
                         "offset": offset,
                     },
-                    timeout=10.0,
+                    timeout=min(10.0, remaining),
                 )
                 response.raise_for_status()
                 payload = response.json()
@@ -185,6 +192,12 @@ async def fetch_cpcb_stations(
             offset += len(batch)
             if isinstance(total, int) and offset >= total:
                 break
+
+    try:
+        try:
+            await asyncio.wait_for(_fetch_all_pages(), timeout=timeout_s)
+        except TimeoutError as exc:
+            raise ProviderError("CPCB provider timed out") from exc
     finally:
         if owns_client:
             await http_client.aclose()

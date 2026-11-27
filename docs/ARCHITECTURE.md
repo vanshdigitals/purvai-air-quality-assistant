@@ -63,7 +63,7 @@ PM rows are baseline-verified. Gas rows come from the CPCB 2014 NAQI table and w
 | Severe | Avoid going out | Stay indoors; doctor if symptoms |
 Sensitive members escalate one level earlier (capped at Severe). Outdoor workers get `mask_and_breaks` from Poor. Household verdict = strictest member. GRAP from `config/grap.json` `{region, stage, order_date, source_url, cities}`, edited by hand; included only when the chosen CPCB station's city is in `cities` (never inferred from AQI; invalid file logs an error and yields `grap: null`). Stages: I 201-300, II 301-400, III 401-450, IV above 450.
 
-Action catalogue and deterministic mapping (sensitive actions first when any of `child_u12`, `adult_65p`, `heart_lung` is present, then general actions, then `mask_and_breaks` for `outdoor_worker` at Poor or worse, deduplicated and capped at 3; `headline` joins the first two texts):
+Action catalogue and deterministic mapping (order: sensitive actions when any of `child_u12`, `adult_65p`, `heart_lung` is present, then `mask_and_breaks` for `outdoor_worker` at Poor or worse, then general actions; deduplicated, `SUPERSEDES = {"stay_indoors": ["no_outdoor_exercise"]}` applied, and capped at 3; `headline` joins the first two texts):
 
 | Category | General `action_id`s | Sensitive `action_id`s |
 |---|---|---|

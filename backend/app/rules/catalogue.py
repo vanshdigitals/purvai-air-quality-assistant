@@ -67,3 +67,7 @@ SENSITIVE_ACTIONS: dict[Category, tuple[str, ...]] = {
 }
 
 OUTDOOR_WORKER_CATEGORIES: frozenset[Category] = frozenset({"poor", "very_poor", "severe"})
+
+SUPERSEDES: dict[str, tuple[str, ...]] = {
+    "stay_indoors": ("no_outdoor_exercise",),
+}
