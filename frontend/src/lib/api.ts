@@ -384,3 +384,138 @@ export function deleteConversations(): Promise<void> {
     method: "DELETE",
   }).then(() => undefined);
 }
+
+export interface ActivityItem {
+  id: number;
+  kind: string;
+  mode: string | null;
+  replaced_mode: string | null;
+  distance_km: number | null;
+  hours: number | null;
+  co2_saved_g: number | null;
+  occurred_at: string;
+}
+
+export interface ActivityCreateInput {
+  kind: string;
+  mode?: string | null;
+  replaced_mode?: string | null;
+  distance_km?: number | null;
+  hours?: number | null;
+}
+
+export interface ImpactSummary {
+  trips: number;
+  co2_saved_g: number;
+  co2_saved_kg: number;
+  distance_km: number;
+  days: number;
+}
+
+export interface BackupItem {
+  filename: string;
+  byte_size: number;
+  created_at: string;
+}
+
+export interface ImportDryRunResponse {
+  dry_run: true;
+  counts: {
+    members: number;
+    locations: number;
+    activities: number;
+  };
+}
+
+export interface ImportApplyResponse {
+  dry_run: false;
+  imported: {
+    members: number;
+    locations: number;
+    activities: number;
+  };
+}
+
+export function fetchActivities(days = 7): Promise<ActivityItem[]> {
+  return apiFetch<ActivityItem[]>(`/activities?days=${days}`);
+}
+
+export function postActivity(payload: ActivityCreateInput): Promise<ActivityItem> {
+  return apiFetch<ActivityItem>("/activities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteActivity(id: number): Promise<void> {
+  return apiFetch<unknown>(`/activities/${id}`, {
+    method: "DELETE",
+  }).then(() => undefined);
+}
+
+export function fetchImpactSummary(days = 7): Promise<ImpactSummary> {
+  return apiFetch<ImpactSummary>(`/impact/summary?days=${days}`);
+}
+
+export async function downloadReport(format: "pdf" | "csv", days = 7): Promise<Blob> {
+  const headers = new Headers();
+  const householdId = getOrCreateDemoHouseholdId();
+  headers.set("X-Purvai-Household", householdId);
+  const response = await fetch(`/api/v1/reports/${format}?days=${days}`, {
+    method: "POST",
+    headers,
+  });
+  if (!response.ok) {
+    throw new ApiError(
+      `Failed to generate ${format.toUpperCase()} report`,
+      "REPORT_ERROR",
+      response.status
+    );
+  }
+  return response.blob();
+}
+
+export function exportData(): Promise<unknown> {
+  return apiFetch<unknown>("/data/export");
+}
+
+export function importData(payload: unknown, dryRun: true): Promise<ImportDryRunResponse>;
+export function importData(payload: unknown, dryRun: false): Promise<ImportApplyResponse>;
+export function importData(
+  payload: unknown,
+  dryRun: boolean
+): Promise<ImportDryRunResponse | ImportApplyResponse> {
+  return apiFetch<ImportDryRunResponse | ImportApplyResponse>(
+    `/data/import?dry_run=${dryRun ? "true" : "false"}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function createBackup(): Promise<BackupItem> {
+  return apiFetch<BackupItem>("/db/backup", { method: "POST" });
+}
+
+export function fetchBackups(): Promise<BackupItem[]> {
+  return apiFetch<BackupItem[]>("/db/backups");
+}
+
+export function restoreBackup(filename: string): Promise<{ restored: string; status: string }> {
+  return apiFetch<{ restored: string; status: string }>("/db/restore", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename }),
+  });
+}
+
+export function deleteAllData(): Promise<{ deleted: boolean }> {
+  return apiFetch<{ deleted: boolean }>("/data", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: "DELETE" }),
+  });
+}
