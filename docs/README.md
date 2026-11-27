@@ -7,8 +7,6 @@ Families in polluted Indian cities see AQI numbers, not decisions. Purvai turns 
 ## Features and differentiators
 Live AQI with a source label (Measured, Modelled, Estimated), deterministic verdict, daily plan, Ask Purvai, Home Air, travel options, impact tracking, 7-day history, PDF/CSV/JSON reports, backup and restore. The rules engine, not the AI, decides the verdict ([AI_SAFETY.md](AI_SAFETY.md)). Official CPCB data first. No account, no paid services.
 
-Screenshots: none yet; added after Phase 3.
-
 ## Stack and requirements
 React 19 + TypeScript + Vite + Tailwind; FastAPI, Pydantic v2, SQLModel, Alembic on Python 3.12; SQLite; Gemini with Groq fallback; Recharts; fpdf2 ([TRD.md](TRD.md)). Needs Python 3.12, Node.js LTS, Git, 1 GB disk. Docker optional.
 
@@ -49,18 +47,20 @@ cd ..\frontend; npm ci; npm run dev   # http://localhost:5173
 | GEMINI_API_KEY, GROQ_API_KEY | no | AI off without them |
 | CORS_DEV_ORIGIN | no | http://localhost:5173 |
 | LOG_LEVEL | no | INFO |
+| CO2_ESTIMATES_ENABLED | no | true |
+| TRUST_PROXY_HEADERS | no | false |
 
 ## Build, test, reports, data
-`npm run build` (FastAPI serves `frontend/dist` on port 8000). Tests: `pytest`, `npm test`, `npm run test:e2e` ([TESTING.md](TESTING.md)). Reports: Reports & Data, 1 or 7 days, PDF or CSV ([API.md](API.md)). Backup (local): writes `data/backups/purvai-YYYYMMDD-HHMM.db`. JSON export and import with preview in any mode.
+`npm run build` (FastAPI serves `frontend/dist` on port 8000). Install dev tools with `pip install -r backend/requirements-dev.txt`; tests: `pytest`, `npm test`, `npm run test:e2e` ([TESTING.md](TESTING.md)). Reports: Reports & Data, 1 or 7 days, PDF or CSV ([API.md](API.md)). Backup (local): writes `data/backups/purvai-YYYYMMDDTHHMMSSZ.db`. JSON export and import with preview in any mode.
 
 ## Structure
 ```
-backend/app/{api,aqi,providers,rules,db}/  backend/app/{config.py,main.py}  backend/alembic/  backend/tests/
+backend/app/{api,aqi,providers,rules,ai,impact,reports,db}/  backend/app/{config.py,main.py}  backend/alembic/  backend/tests/
 config/grap.json  frontend/src/{app,components,features,lib,styles}/  frontend/tests/  frontend/e2e/  data/ (gitignored)
 ```
 
 ## Status and limitations
-Phase 4 complete; Gemini + Groq + deterministic template gateway, SAF-01..05 guard, Ask Purvai (`/ask`, `POST /chat`, `GET`/`DELETE /conversations`), Plan/Home Air AI wording, and Settings AI & Save Chat toggles ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
+Phase 6 complete; accessibility, security headers & chunked body limits, rate limiting, PERF-01/PERF-03/NFR-01 checks, Dependabot, and full test gates verified. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
 
 ## Documentation research report (25 November 2026)
 1. **Structure:** `purvai/` with 13 root files plus `design/PURVAI_DESIGN_SYSTEM.md`, exactly 14.

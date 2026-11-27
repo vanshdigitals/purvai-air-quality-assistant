@@ -21,7 +21,7 @@ Test safety logic hardest. Never call real quota-limited APIs; mock all provider
 
 Fixtures in `backend/tests/fixtures/`: CPCB rows for Noida, Delhi, Prayagraj; Open-Meteo JSON; valid and invalid AI replies. freezegun for time.
 
-CI (GitHub Actions, every push): ruff, mypy --strict, pytest + coverage, eslint, tsc, Vitest, build, Playwright + axe. No secrets needed. Coverage: 80% on `aqi/`, `rules/`, `impact/`; 70% backend; 100% verdict rows.
+CI (GitHub Actions, every push): ruff, mypy --strict, pytest + coverage (`--cov-fail-under=75` and `coverage report --precision=2 --include="app/aqi/*,app/rules/*,app/ai/*,app/impact/*" --fail-under=80`), eslint, tsc, Vitest, build + `node scripts/check-bundle.mjs` (<= 250 KB gzipped on `/today`), Playwright + axe. No secrets needed. Coverage: 80% on `aqi/`, `rules/`, `ai/`, `impact/`; 75% backend; 100% verdict rows.
 
 ## Release checklist
 - CI green, coverage met.

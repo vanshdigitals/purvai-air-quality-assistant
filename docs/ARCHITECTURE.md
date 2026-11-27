@@ -65,7 +65,7 @@ Sensitive members escalate one level earlier (capped at Severe). Outdoor workers
 
 Daily Protection Plan periods use IST (`Asia/Kolkata`) windows: `morning` (06:00–12:00), `afternoon` (12:00–17:00), `evening` (17:00–21:00), and `night` (21:00–06:00 next day). Each period uses the worst-hour AQI within its window (`today` overrides the current active period when live `/air` AQI is worse) and runs the deterministic rules engine (`generated_by: "rules"`).
 
-For automated E2E tests without external network calls, `PURVAI_FAKE_PROVIDERS=true` switches providers to recorded JSON fixtures (`cpcb_noida.json`, `open_meteo_current_noida.json`, `open_meteo_forecast_noida.json`, `geocoding_noida.json`) in `local` mode only; enabling it in `demo` mode refuses startup.
+For automated E2E tests without external network calls, `PURVAI_FAKE_PROVIDERS=true` switches providers to recorded JSON fixtures (`cpcb_noida.json`, `open_meteo_noida.json`, `open_meteo_forecast_noida.json`, `geocoding_noida.json`) in `local` mode only; enabling it in `demo` mode refuses startup.
 
 Action catalogue and deterministic mapping (order: sensitive actions when any of `child_u12`, `adult_65p`, `heart_lung` is present, then `mask_and_breaks` for `outdoor_worker` at Poor or worse, then general actions; deduplicated, `SUPERSEDES = {"stay_indoors": ["no_outdoor_exercise"]}` applied, and capped at 3; `headline` joins the first two texts):
 

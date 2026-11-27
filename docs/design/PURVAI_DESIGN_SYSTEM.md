@@ -20,7 +20,7 @@ Primary Harbor Blue #1E4E79, accent Clear Teal #0E7C86, supporting Graphite #334
 | disabled bg / text | #EEF1F5 / #7B8598 | #1A2438 / #5B6785 |
 | focus | #1E4E79 | #7FB2E5 |
 
-Semantic (system states only, never AQI): danger #B42318/#F97066 (#FEF3F2), warning #B54708/#FDB022 (#FFFAEB), success #067647/#47CD89 (#ECFDF3), info #175CD3/#7FB2E5 (#EFF8FF).
+Semantic (system states only, never AQI): danger #B42318/#F97066 (--on-danger #FFFFFF/#0B1220, #FEF3F2), warning #B54708/#FDB022 (#FFFAEB), success #067647/#47CD89 (#ECFDF3), info #175CD3/#7FB2E5 (#EFF8FF).
 
 AQI (CPCB categories): Good #2E9E5B, Satisfactory #8BC34A, Moderate #E8C547, Poor #E8892B, Very Poor #D64545 (P-01: #CF4040 on filled chips, white text 4.71:1), Severe #8E2430. Use only as dots, 4 px bars, 8%/12% chart bands and chips, always with the word. P-02 hairline ring. Official CPCB colour codes unverified.
 

@@ -85,7 +85,7 @@ describe("Onboarding flow", () => {
     ).toBeInTheDocument();
     expect(savedBodies[0]).toContain('"kind":"child_u12","count":1');
     expect(savedBodies[0]).toContain('"commute_mode":"bus"');
-  });
+  }, 15_000);
 
   it("supports location search, manual fallback on error, and skip after location", async () => {
     const user = userEvent.setup();

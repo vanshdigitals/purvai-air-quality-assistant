@@ -77,7 +77,7 @@ Purvai should run as one FastAPI + SQLite application in two modes: a persistent
 | D-02 | Deadline about 28 Nov | Date differs | Hack2skill post: "Submission Deadline: November 29, 2026"; 3 attempts | Submit 28 Nov, hard stop 29 Nov | Phase 7 |
 | D-03 | Antigravity unknown | Rule exists | Hack2skill page: "using Google Antigravity is a requirement for all submissions" | Build inside Antigravity | Workflow |
 | D-04 | GRAP Stage II from 2 Nov | Stage moved | CAQM: Stage III invoked 06.11.2026, revoked 17.11.2026; "Current GRAP Stage: Stage II, Effective: 02 Nov 2026" | Config `stage: II, order_date: 2026-11-02`, re-checked on demo day | Config |
-| D-05 | CO2 disabled | Factors found | ITF/OECD 2023 India life-cycle study; India GHG Program 2015 v1.0 | Enable CO2 as "Estimated" from ITF 2023 | Needs A-02 |
+| D-05 | CO2 disabled | Factors found | ITF/OECD 2023 India life-cycle study; India GHG Program 2015 v1.0 | Enable CO2 as "Estimated" from ITF 2023 | Approved 27 Nov 2026 (A-02) |
 | D-06 | Gemini JSON output | Schema subset | Gemini docs list supported keywords; an SDK issue reports value constraints ignored | Flat schemas, Pydantic re-validation | AI_SCHEMAS |
 | D-07 | Groq gpt-oss-20b | Limit conflict | Groq Rate Limits page (console.groq.com/docs/rate-limits, Free Plan table): "openai/gpt-oss-20b · 30 · 1K · 8K · 200K"; the 3 RPM / 2K TPM row there belongs to openai/gpt-oss-safeguard-20b, which likely explains the 6 Oct 2026 archive conflict | Keep; read console limits in Phase 4 | None if limits hold |
 | D-08 | React 18 | Versions not re-verified | Search budget exhausted | Pin latest stable React, Vite, Tailwind in Phase 1 (A-04) | Minor |

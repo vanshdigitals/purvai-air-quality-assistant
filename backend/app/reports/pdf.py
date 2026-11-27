@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from app.db.models import ActivityLog, Household
 
 try:
-    from fpdf import FPDF  # type: ignore[import-untyped]
+    from fpdf import FPDF
 
     _FPDF_AVAILABLE = True
 except ModuleNotFoundError:

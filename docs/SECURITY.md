@@ -15,13 +15,13 @@ Least data, least privilege, fail closed, no secrets in the client. Authenticati
 | XSS | React escaping; no `dangerouslySetInnerHTML`; AI text as text |
 
 ## Validation, CORS, headers
-Pydantic `extra="forbid"`, ranges, lengths; body 64 KB; outputs validated. Same-origin in production; dev allows `http://localhost:5173`. Headers: CSP `default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'`, HSTS (hosted), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: geolocation=(self)`.
+Pydantic `extra="forbid"`, ranges, lengths; streaming chunked body limit 64 KB (5 MB on `POST /data/import`); outputs validated. Same-origin in production; dev allows `http://localhost:5173`. `TRUST_PROXY_HEADERS` (default `false`) enables `X-Forwarded-For` first-IP rate limiting behind Cloud Run / Render. Headers: CSP `default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, HSTS (hosted/demo), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: geolocation=(self)`.
 
 ## Data at rest and exports
 DB file mode 0600 where supported, under `data/`, not encrypted (full-disk encryption advised). Backups stay local. Exports are built in memory with `Content-Disposition: attachment`. CSV cells starting with `= + - @` get a `'` prefix.
 
 ## Logging and dependencies
-JSON logs to stdout. Never log prompts, chat, household flags, coordinates beyond 2 decimals or keys. Errors carry `request_id`. Pinned lockfiles, `pip-audit`, `npm audit`, Dependabot.
+JSON logs to stdout. Never log prompts, chat, household flags, coordinates beyond 2 decimals or keys. Errors carry `request_id`. Pinned lockfiles, `pip-audit`, `npm audit`, `.github/dependabot.yml` (pip, npm, github-actions weekly).
 
 ## Privacy
 No accounts, analytics or third-party scripts. Location rounded before caching.
