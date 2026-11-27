@@ -25,11 +25,43 @@ def test_security_headers_and_request_id(local_client: TestClient, demo_client: 
 
 
 def test_unknown_api_route_returns_json_404(local_client: TestClient) -> None:
-    resp = local_client.get("/api/v1/x")
+    resp = local_client.get("/api/v1/unknown")
     assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
     body = resp.json()
     assert body["error"]["code"] == "NOT_FOUND"
     assert body["error"]["request_id"]
+
+
+def test_cors_allows_only_configured_dev_origin(
+    local_client: TestClient, demo_client: TestClient
+) -> None:
+    allowed = local_client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+    disallowed = local_client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert disallowed.headers.get("access-control-allow-origin") is None
+
+    demo_preflight = demo_client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert demo_preflight.headers.get("access-control-allow-origin") is None
 
 
 def test_body_over_64kb_returns_413(local_client: TestClient) -> None:

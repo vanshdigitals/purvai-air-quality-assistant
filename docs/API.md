@@ -41,14 +41,39 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 Returns `503` with `"status": "degraded"` and `"database": {"status": "error", ...}` if the database integrity check fails.
 
 ### GET /air
+Query: `lat` (-90 to 90), `lon` (-180 to 180), both required. Locations outside India's extent (lat 6 to 38, lon 68 to 98) return `422` with `code: "UNSUPPORTED_REGION"`. Returns `502` (`PROVIDER_UNAVAILABLE`) if both providers fail with no cache, or `429` (`RATE_LIMIT_EXCEEDED`) on rate limit.
+
 ```json
-{"aqi":312,"category":"very_poor","scale":"CPCB_NAQI","source_label":"Measured",
- "source":{"provider":"CPCB","station":"Sector-62, Noida","distance_km":3.1},
- "observed_at":"2026-11-25T03:30:00Z","stale":false,"indicative":true,
- "pollutants":{"pm25":{"value":168,"unit":"µg/m³","sub_index":336}},
- "verdict":{"level":"very_poor","household_level":"severe","headline":"Stay indoors today. Run the purifier."},
- "grap":{"stage":"II","order_date":"2026-11-02"},"attribution":["CPCB","data.gov.in"]}
+{
+  "aqi": 312,
+  "aqi_is_floor": false,
+  "category": "very_poor",
+  "scale": "CPCB_NAQI",
+  "source_label": "Measured",
+  "source": { "provider": "CPCB", "station": "Sector-62, Noida", "distance_km": 3.1 },
+  "observed_at": "2026-11-25T03:30:00Z",
+  "age_minutes": 40,
+  "stale": false,
+  "indicative": true,
+  "served_from_cache": false,
+  "dominant_pollutant": "pm25",
+  "pollutants": { "pm25": { "value": 135, "unit": "µg/m³", "sub_index": 312 } },
+  "verdict": {
+    "level": "very_poor",
+    "household_level": "severe",
+    "headline": "Stay indoors today. Run the purifier.",
+    "action_ids": ["stay_indoors", "purifier_on", "n95_if_out"],
+    "actions": [
+      { "action_id": "stay_indoors", "text": "Stay indoors today.", "tag": "rule" },
+      { "action_id": "purifier_on", "text": "Run the purifier.", "tag": "rule" },
+      { "action_id": "n95_if_out", "text": "Wear a well-fitted N95 if you go out.", "tag": "rule" }
+    ]
+  },
+  "grap": { "stage": "II", "order_date": "2026-11-02", "source_url": "https://caqm.nic.in/" },
+  "attribution": ["CPCB", "data.gov.in"]
+}
 ```
+Modelled fallback returns `source: {"provider":"Open-Meteo (CAMS)","station":null,"distance_km":null}`, `grap: null`, and `attribution: ["Open-Meteo","CAMS"]`.
 ### POST /chat
 Request `{"message":"Can my son play outside at 5 pm?"}` (1 to 500 chars). Response: [ChatReply](AI_SCHEMAS.md#chatreply) plus `generated_by` (gemini, groq or template).
 ### POST /activities

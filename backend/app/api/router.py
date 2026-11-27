@@ -2,10 +2,12 @@
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.api.air import router as air_router
 from app.api.health import router as health_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(health_router)
+api_v1_router.include_router(air_router)
 
 
 @api_v1_router.api_route(

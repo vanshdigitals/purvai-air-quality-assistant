@@ -27,7 +27,8 @@ def configure_json_logger(level_name: str) -> logging.Logger:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter("%(message)s"))
         logger.addHandler(handler)
-    logger.propagate = False
+    if "pytest" not in sys.modules:
+        logger.propagate = False
     return logger
 
 

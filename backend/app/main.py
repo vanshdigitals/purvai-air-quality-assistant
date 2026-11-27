@@ -19,6 +19,7 @@ from sqlmodel import Session
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware, configure_json_logger
 from app.api.router import api_v1_router
+from app.aqi.pipeline import purge_old_observations, utc_now
 from app.config import REPO_ROOT, Settings, get_settings
 from app.db.engine import (
     apply_local_db_permissions,
@@ -60,6 +61,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 apply_local_db_permissions(db_path)
             with Session(engine) as session:
                 seed_data_sources(session)
+                purge_now = utc_now()
+                purge_old_observations(session, purge_now)
+                app.state.last_purge_at = purge_now
             db_ok = run_quick_check(engine)
             if not db_ok:
                 logger.error(json.dumps({"event": "db_quick_check_failed"}))
@@ -79,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.limiter = limiter
     app.state.db_healthy = False
+    app.state.last_purge_at = None
 
     register_exception_handlers(app)
 

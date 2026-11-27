@@ -1,0 +1,15 @@
+{
+  "region": "Delhi-NCR",
+  "stage": "II",
+  "order_date": "2026-11-02",
+  "source_url": "https://caqm.nic.in/",
+  "cities": [
+    "Delhi",
+    "New Delhi",
+    "Noida",
+    "Greater Noida",
+    "Ghaziabad",
+    "Gurugram",
+    "Faridabad"
+  ]
+}

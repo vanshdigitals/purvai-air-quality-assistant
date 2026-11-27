@@ -52,12 +52,12 @@ cd ..\frontend; npm ci; npm run dev   # http://localhost:5173
 
 ## Structure
 ```
-backend/app/{api,db}/  backend/app/{config.py,main.py}  backend/alembic/  backend/tests/
-frontend/src/{app,components,features,lib,styles}/  frontend/tests/  frontend/e2e/  data/ (gitignored)
+backend/app/{api,aqi,providers,rules,db}/  backend/app/{config.py,main.py}  backend/alembic/  backend/tests/
+config/grap.json  frontend/src/{app,components,features,lib,styles}/  frontend/tests/  frontend/e2e/  data/ (gitignored)
 ```
 
 ## Status and limitations
-Phase 1 complete; foundation, `/api/v1/health`, SQLite + Alembic schema, and SPA shell ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
+Phase 2 complete; CPCB + Open-Meteo AQI engine, deterministic verdict rules, GRAP, SQLite cache, and `/api/v1/air` ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
 
 ## Documentation research report (25 November 2026)
 1. **Structure:** `purvai/` with 13 root files plus `design/PURVAI_DESIGN_SYSTEM.md`, exactly 14.

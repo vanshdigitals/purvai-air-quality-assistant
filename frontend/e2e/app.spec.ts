@@ -24,6 +24,18 @@ test.describe("Purvai Phase 1 E2E", () => {
     };
     expect(healthJson.status).toBe("ok");
 
+    const unknownApiRes = await request.get("/api/v1/unknown");
+    expect(unknownApiRes.status()).toBe(404);
+    expect(unknownApiRes.headers()["content-type"]).toContain("application/json");
+    const unknownBody = (await unknownApiRes.json()) as { error: { code: string } };
+    expect(unknownBody.error.code).toBe("NOT_FOUND");
+
+    const deepLinkRes = await request.get("/today");
+    expect(deepLinkRes.status()).toBe(200);
+    expect(deepLinkRes.headers()["content-type"]).toContain("text/html");
+    expect(deepLinkRes.headers()["content-security-policy"]).toContain("default-src 'self'");
+    expect(deepLinkRes.headers()["x-content-type-options"]).toBe("nosniff");
+
     await page.goto("/");
     await expect(page).toHaveURL(/\/today$/);
     await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
@@ -105,5 +117,20 @@ test.describe("Purvai Phase 1 E2E", () => {
       );
       expect(seriousOrCritical, `Dark axe violations on ${route.path}`).toEqual([]);
     }
+  });
+
+  test("mobile viewport opens profile menu to reach Reports & Data and Settings", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/today");
+
+    await page.getByRole("button", { name: "Reports and settings menu" }).click();
+    const menu = page.getByRole("navigation", { name: "Account and workspace" });
+    await expect(menu.getByRole("link", { name: "Reports & Data" })).toBeVisible();
+    await expect(menu.getByRole("link", { name: "Settings" })).toBeVisible();
+    await menu.getByRole("link", { name: "Reports & Data" }).click();
+    await expect(page).toHaveURL(/\/reports$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Reports & Data" })).toBeVisible();
   });
 });

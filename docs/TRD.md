@@ -8,12 +8,12 @@
 | Styling | Tailwind 4.3.5 (`@tailwindcss/vite` 4.3.5) + CSS-variable tokens + `@fontsource-variable/{instrument-sans,geist}` 5.3.0 | [Design system](design/PURVAI_DESIGN_SYSTEM.md); self-hosted fonts for strict `'self'` CSP |
 | Data | TanStack Query 5.108.4 | Cache, retry, stale states |
 | Charts / icons | Recharts (Phase 3) / Lucide React 1.81.0 | SVG, open-source |
-| API | FastAPI 0.165.0, Uvicorn 0.54.0, Pydantic 2.14.4, pydantic-settings 2.16.3 | Typed validation, OpenAPI |
+| API | FastAPI 0.165.0, Uvicorn 0.54.0, Pydantic 2.14.4, pydantic-settings 2.16.3, httpx 0.29.0 | Typed validation, OpenAPI, 10 s provider HTTP |
 | ORM | SQLModel 0.0.50 on SQLAlchemy 2.1.9 | Pydantic-native; Core when needed |
 | Migrations | Alembic 1.20.1, `render_as_batch=True` | SQLite ALTER limits |
 | Rate limit | slowapi 0.1.10 | One instance is enough |
 | PDF | fpdf2 (LGPL-3.0) + matplotlib (Phase 5) | No system deps; ReportLab backup; WeasyPrint rejected |
-| Tests | pytest 9.2.0, Vitest 5.1.2, RTL 16.3.3, Playwright 1.65.1, `@axe-core/playwright` 4.14.1 | [TESTING.md](TESTING.md) |
+| Tests | pytest 9.2.0, respx 0.23.1, freezegun 1.5.5, Vitest 5.1.2, RTL 16.3.3, Playwright 1.65.1, `@axe-core/playwright` 4.14.1 | [TESTING.md](TESTING.md) |
 
 Next.js rejected (second Node server). Phase 1 versions pinned (A-04); Recharts and fpdf2 deferred to Phases 3 and 5.
 

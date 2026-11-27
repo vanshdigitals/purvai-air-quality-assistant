@@ -1,0 +1,43 @@
+{
+  "index_name": "3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69",
+  "title": "Real time Air Quality Index from various location (synthetic Prayagraj fixture)",
+  "total": 3,
+  "count": 3,
+  "limit": 1000,
+  "offset": 0,
+  "records": [
+    {
+      "country": "India",
+      "state": "Uttar Pradesh",
+      "city": "Prayagraj",
+      "station": "Jhusi, Prayagraj - UPPCB",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "25.4358",
+      "longitude": "81.8463",
+      "pollutant_id": "PM2.5",
+      "pollutant_avg": "82"
+    },
+    {
+      "country": "India",
+      "state": "Uttar Pradesh",
+      "city": "Prayagraj",
+      "station": "Jhusi, Prayagraj - UPPCB",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "25.4358",
+      "longitude": "81.8463",
+      "pollutant_id": "PM10",
+      "pollutant_avg": "148"
+    },
+    {
+      "country": "India",
+      "state": "Uttar Pradesh",
+      "city": "Prayagraj",
+      "station": "Jhusi, Prayagraj - UPPCB",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "25.4358",
+      "longitude": "81.8463",
+      "pollutant_id": "NO2",
+      "pollutant_avg": "34"
+    }
+  ]
+}

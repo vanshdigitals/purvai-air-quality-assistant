@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,6 +38,8 @@ function renderShell(mode: "local" | "demo" = "local", initialEntry = "/today") 
             <Route path="ask" element={<h1>Ask Purvai</h1>} />
             <Route path="home-air" element={<h1>Home Air</h1>} />
             <Route path="impact" element={<h1>Impact</h1>} />
+            <Route path="reports" element={<h1>Reports &amp; Data</h1>} />
+            <Route path="settings" element={<h1>Settings</h1>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -70,5 +73,22 @@ describe("AppShell", () => {
   it("shows demo banner when mode is demo", async () => {
     renderShell("demo", "/today");
     expect(await screen.findByText("Demo data resets. Export to keep it.")).toBeInTheDocument();
+  });
+
+  it("opens the mobile profile menu to reach Reports & Data and Settings", async () => {
+    const user = userEvent.setup();
+    renderShell("local", "/today");
+
+    const menuButton = screen.getByRole("button", { name: "Reports and settings menu" });
+    await user.click(menuButton);
+
+    const mobileMenu = screen.getByRole("navigation", { name: "Account and workspace" });
+    await user.click(within(mobileMenu).getByRole("link", { name: "Reports & Data" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Reports & Data" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reports and settings menu" }));
+    const mobileMenuAgain = screen.getByRole("navigation", { name: "Account and workspace" });
+    await user.click(within(mobileMenuAgain).getByRole("link", { name: "Settings" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
   });
 });

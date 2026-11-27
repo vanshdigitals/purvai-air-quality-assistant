@@ -12,8 +12,19 @@ STATUS_CODE_MAP: dict[int, str] = {
     status.HTTP_422_UNPROCESSABLE_CONTENT: "VALIDATION_ERROR",
     status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMIT_EXCEEDED",
     status.HTTP_500_INTERNAL_SERVER_ERROR: "INTERNAL_ERROR",
+    status.HTTP_502_BAD_GATEWAY: "PROVIDER_UNAVAILABLE",
     status.HTTP_503_SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
 }
+
+
+class ApiStatusError(Exception):
+    """Application-level HTTP error with explicit docs/API.md error code."""
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
 
 
 def get_request_id(request: Request) -> str:
@@ -34,6 +45,13 @@ def error_payload(code: str, message: str, request_id: str) -> dict[str, dict[st
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register global exception handlers returning uniform JSON error envelopes."""
+
+    @app.exception_handler(ApiStatusError)
+    async def api_status_error_handler(request: Request, exc: ApiStatusError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_payload(exc.code, exc.message, get_request_id(request)),
+        )
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

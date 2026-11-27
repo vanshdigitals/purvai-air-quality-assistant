@@ -1,0 +1,62 @@
+{
+  "index_name": "3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69",
+  "title": "Real time Air Quality Index from various location (synthetic Delhi fixture)",
+  "total": 4,
+  "count": 4,
+  "limit": 1000,
+  "offset": 0,
+  "records": [
+    {
+      "country": "India",
+      "state": "Delhi",
+      "city": "Delhi",
+      "station": "Anand Vihar, Delhi - DPCC",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "28.647622",
+      "longitude": "77.315809",
+      "pollutant_id": "PM2.5",
+      "min_value": "190",
+      "max_value": "340",
+      "avg_value": "265"
+    },
+    {
+      "country": "India",
+      "state": "Delhi",
+      "city": "Delhi",
+      "station": "Anand Vihar, Delhi - DPCC",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "28.647622",
+      "longitude": "77.315809",
+      "pollutant_id": "PM10",
+      "min_value": "280",
+      "max_value": "450",
+      "avg_value": "370"
+    },
+    {
+      "country": "India",
+      "state": "Delhi",
+      "city": "Delhi",
+      "station": "Anand Vihar, Delhi - DPCC",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "28.647622",
+      "longitude": "77.315809",
+      "pollutant_id": "NO2",
+      "min_value": "40",
+      "max_value": "110",
+      "avg_value": "76"
+    },
+    {
+      "country": "India",
+      "state": "Delhi",
+      "city": "Delhi",
+      "station": "Anand Vihar, Delhi - DPCC",
+      "last_update": "25-11-2026 09:00:00",
+      "latitude": "28.647622",
+      "longitude": "77.315809",
+      "pollutant_id": "CO",
+      "min_value": "1.2",
+      "max_value": "3.4",
+      "avg_value": "2.3"
+    }
+  ]
+}

@@ -41,7 +41,7 @@ flowchart TD
   V -- yes --> AQ[AQI = max sub-index]
   AQ --> ST{Over 2 h old?} --> BAN[Stale banner]
 ```
-Sub-index I = ((Ihi - Ilo) / (Bhi - Blo)) x (C - Blo) + Ilo. Averaging: 24 h for PM, NO2, SO2; 8 h for CO, O3. Real-time windows are shorter, so results are labelled "indicative".
+Sub-index I = ((Ihi - Ilo) / (Bhi - Blo)) x (C - Blo) + Ilo, rounded to the nearest integer. Before band lookup, truncate concentrations to the table's precision: whole numbers for PM2.5, PM10, NO2, O3, and SO2; one decimal place for CO (mg/m³). Any pollutant in the unbounded Severe band yields sub-index `401` and sets `aqi_is_floor: true` ("401+" in UI). With PM2.5 or PM10 present but fewer than 3 pollutants, compute AQI and label `source_label: "Estimated"`; with neither PM2.5 nor PM10, that source yields no AQI. Purvai supports locations within India (lat 6 to 38, lon 68 to 98; else 422 `UNSUPPORTED_REGION`). Averaging: 24 h for PM, NO2, SO2; 8 h for CO, O3. Real-time windows are shorter, so `indicative: true`.
 
 | Band | AQI | PM2.5 | PM10 | NO2 | O3 8h | CO mg/m³ 8h | SO2 |
 |---|---|---|---|---|---|---|---|
@@ -61,13 +61,26 @@ PM rows are baseline-verified. Gas rows come from the CPCB 2014 NAQI table and w
 | Poor | Exercise indoors; windows closed at peaks | Mostly indoors; mask outdoors |
 | Very Poor | No outdoor exercise; N95 outdoors | Stay indoors; purifier on |
 | Severe | Avoid going out | Stay indoors; doctor if symptoms |
-Sensitive members escalate one level earlier. Outdoor workers get mask and break guidance from Poor. Household verdict = strictest member. GRAP from `config/grap.json` {stage, order_date, source_url}, edited by hand. Stages: I 201-300, II 301-400, III 401-450, IV above 450.
+Sensitive members escalate one level earlier (capped at Severe). Outdoor workers get `mask_and_breaks` from Poor. Household verdict = strictest member. GRAP from `config/grap.json` `{region, stage, order_date, source_url, cities}`, edited by hand; included only when the chosen CPCB station's city is in `cities` (never inferred from AQI; invalid file logs an error and yields `grap: null`). Stages: I 201-300, II 301-400, III 401-450, IV above 450.
+
+Action catalogue and deterministic mapping (sensitive actions first when any of `child_u12`, `adult_65p`, `heart_lung` is present, then general actions, then `mask_and_breaks` for `outdoor_worker` at Poor or worse, deduplicated and capped at 3; `headline` joins the first two texts):
+
+| Category | General `action_id`s | Sensitive `action_id`s |
+|---|---|---|
+| Good | `normal_activity` | `normal_activity` |
+| Satisfactory | `normal_activity` | `normal_activity`, `watch_symptoms` |
+| Moderate | `reduce_long_exertion` | `limit_outdoor_exertion` |
+| Poor | `exercise_indoors`, `windows_closed_peaks` | `mostly_indoors`, `mask_outdoors` |
+| Very Poor | `no_outdoor_exercise`, `n95_if_out` | `stay_indoors`, `purifier_on` |
+| Severe | `avoid_going_out` | `stay_indoors`, `doctor_if_symptoms` |
+
+Catalogue texts: `normal_activity` ("Normal outdoor activity is fine."), `watch_symptoms` ("Sensitive members: watch for symptoms."), `reduce_long_exertion` ("Cut down long, hard outdoor exercise."), `limit_outdoor_exertion` ("Sensitive members: limit long outdoor exertion."), `exercise_indoors` ("Move exercise indoors."), `windows_closed_peaks` ("Keep windows closed at peak hours."), `mostly_indoors` ("Sensitive members: stay mostly indoors."), `mask_outdoors` ("Sensitive members: wear a well-fitted mask outdoors."), `no_outdoor_exercise` ("Avoid outdoor exercise."), `n95_if_out` ("Wear a well-fitted N95 if you go out."), `stay_indoors` ("Stay indoors today."), `purifier_on` ("Run the purifier."), `avoid_going_out` ("Avoid going out."), `doctor_if_symptoms` ("If symptoms appear, contact a doctor."), `mask_and_breaks` ("Outdoor work: wear a well-fitted mask and take indoor breaks.").
 
 ## Recommendation and AI pipeline
 Rules pick action IDs from a fixed catalogue. AI may only reword them and explain. Flow: derived context, primary provider (15 s), schema validation, guard (verdict match, banned claims). On failure: fallback once, then template. Replies carry `generated_by`.
 
 ## Caching, errors, offline
-Air and forecast cached in SQLite for 30 min by lat/lon rounded to 2 decimals. Provider failure serves the last entry with its age. Offline shows the cached view with "Offline, data from HH:MM". Error format: [API.md](API.md#errors).
+Failure order for `/air`: (1) fresh CPCB station within 10 km and `<= 2 h` old; (2) Open-Meteo current at requested coordinates; (3) most recent cached observation for that rounded location (`served_from_cache: true`, `stale` from age); (4) 502 `PROVIDER_UNAVAILABLE`. CPCB station list and Open-Meteo (per lat/lon rounded to 2 decimals) are cached in SQLite for 30 min; observations older than 8 days are purged on startup and daily. Offline shows the cached view with "Offline, data from HH:MM". Error format: [API.md](API.md#errors).
 
 ## Deployment
 Multi-stage Dockerfile: Node builds `dist`; Python slim serves API and static files. Cloud Run: `--max-instances=1 --region=asia-south1`, `PURVAI_MODE=demo`, Secret Manager, budget alert INR 100. Stay inside the free tier and delete the service after judging. Render free runs the same image as backup.
