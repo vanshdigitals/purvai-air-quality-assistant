@@ -1,0 +1,36 @@
+[project]
+name = "purvai-backend"
+version = "0.1.0"
+description = "Purvai FastAPI backend and air quality safety engine"
+requires-python = ">=3.12,<3.13"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+mypy_path = "."
+exclude = ["alembic/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__init__.py", "app/api/__init__.py", "app/db/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true

@@ -1,0 +1,277 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-subtle: var(--subtle);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-input-border: var(--input-border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-secondary-pressed: var(--secondary-pressed);
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-hover: var(--tertiary-hover);
+  --color-tertiary-pressed: var(--tertiary-pressed);
+  --color-selected: var(--selected);
+  --color-selected-hover: var(--selected-hover);
+  --color-selected-border: var(--selected-border);
+  --color-disabled-bg: var(--disabled-bg);
+  --color-disabled-text: var(--disabled-text);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 26px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    color: var(--text);
+  }
+
+  h1 {
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 600;
+  }
+
+  @media (min-width: 640px) {
+    h1 {
+      font-size: 32px;
+      line-height: 38px;
+    }
+  }
+
+  h2 {
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 600;
+  }
+
+  h3 {
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 500;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.tabular-data {
+  font-variant-numeric: tabular-nums;
+}
+
+.purvai-card {
+  background-color: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
+}
+
+.purvai-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-control);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background-color var(--duration-interaction) var(--ease-standard),
+    transform var(--duration-interaction) var(--ease-standard);
+}
+
+.purvai-btn:active:not(:disabled) {
+  transform: scale(var(--scale-button-pressed));
+}
+
+.purvai-btn:disabled {
+  background-color: var(--disabled-bg);
+  color: var(--disabled-text);
+  cursor: not-allowed;
+}
+
+.purvai-btn-primary {
+  background-color: var(--primary);
+  color: var(--on-primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+  }
+}
+
+.purvai-btn-primary:active:not(:disabled) {
+  background-color: var(--primary-pressed);
+}
+
+.purvai-btn-secondary {
+  background-color: var(--secondary);
+  color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-btn-secondary:hover:not(:disabled) {
+    background-color: var(--secondary-hover);
+  }
+}
+
+.purvai-btn-secondary:active:not(:disabled) {
+  background-color: var(--secondary-pressed);
+}
+
+.purvai-btn-ghost {
+  background-color: transparent;
+  color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-btn-ghost:hover:not(:disabled) {
+    background-color: var(--ghost-hover);
+  }
+}
+
+.purvai-btn-ghost:active:not(:disabled) {
+  background-color: var(--ghost-pressed);
+}
+
+.purvai-nav-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background-color var(--duration-selection) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-nav-link:hover {
+    background-color: var(--ghost-hover);
+  }
+}
+
+.purvai-nav-link[aria-current="page"] {
+  background-color: var(--selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-nav-link[aria-current="page"]:hover {
+    background-color: var(--selected-hover);
+  }
+}
+
+.purvai-segment {
+  min-height: 44px;
+  min-width: 72px;
+  padding: 0 16px;
+  border-radius: var(--radius-control);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--text-2);
+  background-color: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-selection) var(--ease-standard),
+    transform var(--duration-interaction) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-segment:hover {
+    background-color: var(--ghost-hover);
+  }
+}
+
+.purvai-segment[aria-checked="true"] {
+  background-color: var(--selected);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1.5px var(--selected-border);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .purvai-segment[aria-checked="true"]:hover {
+    background-color: var(--selected-hover);
+  }
+}
+
+.purvai-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 50;
+  padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--primary);
+  color: var(--on-primary);
+  border-radius: var(--radius-control);
+  font-family: var(--font-heading);
+  font-weight: 500;
+}
+
+.purvai-skip-link:focus {
+  left: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .purvai-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

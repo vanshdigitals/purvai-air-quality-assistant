@@ -3,18 +3,19 @@
 ## Stack
 | Layer | Choice | Why |
 |---|---|---|
-| UI | React + TypeScript strict + Vite | Mature; Node at build time only |
-| Styling | Tailwind + CSS-variable tokens | [Design system](design/PURVAI_DESIGN_SYSTEM.md) |
-| Data | TanStack Query | Cache, retry, stale states |
-| Charts / icons | Recharts / Lucide | SVG, open-source |
-| API | FastAPI, Pydantic v2, pydantic-settings | Typed validation, OpenAPI |
-| ORM | SQLModel on SQLAlchemy 2.x | Pydantic-native; Core when needed |
-| Migrations | Alembic, `render_as_batch=True` | SQLite ALTER limits |
-| Rate limit | slowapi | One instance is enough |
-| PDF | fpdf2 (LGPL-3.0) + matplotlib | No system deps; ReportLab backup; WeasyPrint rejected |
-| Tests | pytest, Vitest, RTL, Playwright, axe-core | [TESTING.md](TESTING.md) |
+| UI | React 19.3.1 + TypeScript 6.0.3 strict + Vite 8.4.0 | Mature; Node at build time only |
+| Routing | React Router 8.5.3 (library mode) | Client routing for the SPA shell |
+| Styling | Tailwind 4.3.5 (`@tailwindcss/vite` 4.3.5) + CSS-variable tokens + `@fontsource-variable/{instrument-sans,geist}` 5.3.0 | [Design system](design/PURVAI_DESIGN_SYSTEM.md); self-hosted fonts for strict `'self'` CSP |
+| Data | TanStack Query 5.108.4 | Cache, retry, stale states |
+| Charts / icons | Recharts (Phase 3) / Lucide React 1.81.0 | SVG, open-source |
+| API | FastAPI 0.165.0, Uvicorn 0.54.0, Pydantic 2.14.4, pydantic-settings 2.16.3 | Typed validation, OpenAPI |
+| ORM | SQLModel 0.0.50 on SQLAlchemy 2.1.9 | Pydantic-native; Core when needed |
+| Migrations | Alembic 1.20.1, `render_as_batch=True` | SQLite ALTER limits |
+| Rate limit | slowapi 0.1.10 | One instance is enough |
+| PDF | fpdf2 (LGPL-3.0) + matplotlib (Phase 5) | No system deps; ReportLab backup; WeasyPrint rejected |
+| Tests | pytest 9.2.0, Vitest 5.1.2, RTL 16.3.3, Playwright 1.65.1, `@axe-core/playwright` 4.14.1 | [TESTING.md](TESTING.md) |
 
-Next.js rejected (second Node server). Versions pinned in Phase 1 (A-04).
+Next.js rejected (second Node server). Phase 1 versions pinned (A-04); Recharts and fpdf2 deferred to Phases 3 and 5.
 
 ## Constraints
 TC-01 zero budget. TC-02 no Supabase, Firebase or paid DB. TC-03 no auth in MVP. TC-04 one container, one process, max one instance. TC-05 single branch, repo under 10 MB (unverified rule, followed).

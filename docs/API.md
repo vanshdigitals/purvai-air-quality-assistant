@@ -27,6 +27,19 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 | POST /db/backup, /db/restore | Local only, else 503 | FR-15 |
 | DELETE /data | Body `{"confirm":"DELETE"}` | FR-16 |
 
+### GET /health
+```json
+{
+  "status": "ok",
+  "app": "purvai",
+  "version": "0.1.0",
+  "mode": "local",
+  "database": { "status": "ok", "storage": "persistent", "schema_revision": "0001_initial_schema" },
+  "time": "2026-11-27T10:00:00Z"
+}
+```
+Returns `503` with `"status": "degraded"` and `"database": {"status": "error", ...}` if the database integrity check fails.
+
 ### GET /air
 ```json
 {"aqi":312,"category":"very_poor","scale":"CPCB_NAQI","source_label":"Measured",

@@ -1,0 +1,129 @@
+/* Purvai Design System v1.1 Tokens */
+
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --brand-primary: #1e4e79;
+  --brand-accent: #0e7c86;
+  --brand-graphite: #334155;
+
+  /* Surfaces & Text */
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --shadow-raised: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --subtle: #eef1f5;
+  --text: #0f172a;
+  --text-2: #475569;
+  --muted: #5b6578;
+  --border: #e3e6eb;
+  --input-border: #7b8598;
+
+  /* Actions & States */
+  --primary: #1e4e79;
+  --primary-hover: #1c486f;
+  --primary-pressed: #1a4368;
+  --on-primary: #ffffff;
+  --accent: #0e7c86;
+
+  --secondary: #e8edf2;
+  --secondary-hover: #dbe3ea;
+  --secondary-pressed: #ced8e2;
+
+  --tertiary: #eef1f5;
+  --tertiary-hover: #e3e6eb;
+  --tertiary-pressed: #d4d8df;
+
+  --ghost-hover: #eef1f5;
+  --ghost-pressed: #e3e6eb;
+
+  --selected: #e8edf2;
+  --selected-hover: #e0e6ec;
+  --selected-border: #1e4e79;
+
+  --disabled-bg: #eef1f5;
+  --disabled-text: #7b8598;
+  --focus-ring: #1e4e79;
+
+  /* Semantic */
+  --danger: #b42318;
+  --danger-tint: #fef3f2;
+  --warning: #b54708;
+  --warning-tint: #fffaeb;
+  --success: #067647;
+  --success-tint: #ecfdf3;
+  --info: #175cd3;
+  --info-tint: #eff8ff;
+
+  /* AQI Indicator Tokens (reserved for Phase 3+) */
+  --aqi-good: #2e9e5b;
+  --aqi-satisfactory: #8bc34a;
+  --aqi-moderate: #e8c547;
+  --aqi-poor: #e8892b;
+  --aqi-very-poor: #d64545;
+  --aqi-severe: #8e2430;
+
+  /* Typography */
+  --font-heading: "Instrument Sans Variable", "Instrument Sans", sans-serif;
+  --font-body: "Geist Variable", "Geist", sans-serif;
+
+  /* Radii & Motion */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-pill: 999px;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-interaction: 150ms;
+  --duration-selection: 200ms;
+  --scale-button-pressed: 0.98;
+  --scale-card-pressed: 0.99;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --surface: #121a2b;
+  --raised: #1a2438;
+  --shadow-raised: none;
+  --subtle: #1a2438;
+  --text: #e6eaf2;
+  --text-2: #a3adc2;
+  --muted: #8b96ad;
+  --border: #2a3550;
+  --input-border: #5b6785;
+
+  --primary: #7fb2e5;
+  --primary-hover: #8ebbe8;
+  --primary-pressed: #9bc3eb;
+  --on-primary: #0b1220;
+  --accent: #4fc3ce;
+
+  --secondary: #212f45;
+  --secondary-hover: #283850;
+  --secondary-pressed: #2e425b;
+
+  --tertiary: #1a2438;
+  --tertiary-hover: #283245;
+  --tertiary-pressed: #323c4e;
+
+  --ghost-hover: #1a2438;
+  --ghost-pressed: #283245;
+
+  --selected: #212f45;
+  --selected-hover: #283850;
+  --selected-border: #7fb2e5;
+
+  --disabled-bg: #1a2438;
+  --disabled-text: #5b6785;
+  --focus-ring: #7fb2e5;
+
+  --danger: #f97066;
+  --danger-tint: #322633;
+  --warning: #fdb022;
+  --warning-tint: #332f2a;
+  --success: #47cd89;
+  --success-tint: #193338;
+  --info: #7fb2e5;
+  --info-tint: #212f45;
+}

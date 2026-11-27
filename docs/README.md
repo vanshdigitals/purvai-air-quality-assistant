@@ -10,40 +10,54 @@ Live AQI with a source label (Measured, Modelled, Estimated), deterministic verd
 Screenshots: none yet; added after Phase 3.
 
 ## Stack and requirements
-React + TypeScript + Vite + Tailwind; FastAPI, Pydantic v2, SQLModel, Alembic on Python 3.12; SQLite; Gemini with Groq fallback; Recharts; fpdf2 ([TRD.md](TRD.md)). Needs Python 3.12, Node.js LTS (build only), Git, 1 GB disk. Docker optional.
+React 19 + TypeScript + Vite + Tailwind; FastAPI, Pydantic v2, SQLModel, Alembic on Python 3.12; SQLite; Gemini with Groq fallback; Recharts; fpdf2 ([TRD.md](TRD.md)). Needs Python 3.12, Node.js LTS, Git, 1 GB disk. Docker optional.
 
 ## Install and run
+Bash (Linux / macOS):
 ```bash
 git clone <repo-url> purvai && cd purvai
 cp .env.example .env
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
-cd backend && alembic upgrade head   # creates data/purvai.db
+cd backend && alembic upgrade head   # optional: startup also runs migrations and creates data/purvai.db
 uvicorn app.main:app --reload --port 8000
 cd ../frontend && npm ci && npm run dev   # http://localhost:5173
+```
+
+PowerShell (Windows):
+```powershell
+git clone <repo-url> purvai; cd purvai
+Copy-Item .env.example .env
+py -3.12 -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+cd backend; alembic upgrade head   # optional: startup also runs migrations and creates data\purvai.db
+uvicorn app.main:app --reload --port 8000
+cd ..\frontend; npm ci; npm run dev   # http://localhost:5173
 ```
 
 ## Environment configuration
 | Variable | Required | Example |
 |---|---|---|
 | PURVAI_MODE | yes | local or demo |
-| DATABASE_PATH | no | ./data/purvai.db |
-| DATA_GOV_IN_API_KEY | yes | free key |
+| DATABASE_PATH | no | empty (defaults to `<repo>/data/purvai.db` in local, `<temp>/purvai.db` in demo; relative paths resolve from repo root) |
+| DATA_GOV_IN_API_KEY | no (Phase 2) | free key |
 | AI_PROVIDER / AI_MODEL | no | gemini / model ID from AI Studio |
 | AI_FALLBACK_PROVIDER / AI_FALLBACK_MODEL | no | groq / openai/gpt-oss-20b |
 | GEMINI_API_KEY, GROQ_API_KEY | no | AI off without them |
+| CORS_DEV_ORIGIN | no | http://localhost:5173 |
+| LOG_LEVEL | no | INFO |
 
 ## Build, test, reports, data
-`npm run build` (FastAPI serves `frontend/dist` on port 8000). Tests: `pytest`, `npm test`, `npx playwright test` ([TESTING.md](TESTING.md)). Reports: Reports & Data, 1 or 7 days, PDF or CSV ([API.md](API.md)). Backup (local): writes `data/backups/purvai-YYYYMMDD-HHMM.db`. JSON export and import with preview in any mode.
+`npm run build` (FastAPI serves `frontend/dist` on port 8000). Tests: `pytest`, `npm test`, `npm run test:e2e` ([TESTING.md](TESTING.md)). Reports: Reports & Data, 1 or 7 days, PDF or CSV ([API.md](API.md)). Backup (local): writes `data/backups/purvai-YYYYMMDD-HHMM.db`. JSON export and import with preview in any mode.
 
 ## Structure
 ```
-backend/app/{api,aqi,rules,ai,impact,reports,db,providers}/  backend/alembic/  backend/tests/
-frontend/src/{app,features,components,lib,styles}/   data/ (gitignored)
+backend/app/{api,db}/  backend/app/{config.py,main.py}  backend/alembic/  backend/tests/
+frontend/src/{app,components,features,lib,styles}/  frontend/tests/  frontend/e2e/  data/ (gitignored)
 ```
 
 ## Status and limitations
-Phase 0 complete; no code yet. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
+Phase 1 complete; foundation, `/api/v1/health`, SQLite + Alembic schema, and SPA shell ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
 
 ## Documentation research report (25 November 2026)
 1. **Structure:** `purvai/` with 13 root files plus `design/PURVAI_DESIGN_SYSTEM.md`, exactly 14.
