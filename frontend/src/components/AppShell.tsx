@@ -115,7 +115,7 @@ export function AppShell() {
           </nav>
         </aside>
 
-        <div className="flex min-h-screen flex-col">
+        <div className="flex min-h-screen min-w-0 flex-col">
           {/* Top Header */}
           <header className="border-b border-border bg-surface">
             <div className="mx-auto flex max-w-[1120px] items-center justify-between px-4 py-3 lg:px-8">
