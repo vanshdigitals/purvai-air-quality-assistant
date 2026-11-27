@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import shutil
+import sqlite3
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request, status
@@ -20,6 +27,7 @@ from app.api.household import (
     resolve_existing_household,
 )
 from app.aqi.pipeline import to_utc_iso, utc_now
+from app.db.engine import run_quick_check
 from app.db.models import (
     ActivityLog,
     Household,
@@ -257,3 +265,190 @@ async def import_data(request: Request, dry_run: bool = False) -> dict[str, Any]
         session.commit()
 
     return {"dry_run": False, "imported": counts}
+
+
+_BACKUP_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+\.db$")
+
+
+def _require_local_mode(request: Request) -> Path:
+    settings = request.app.state.settings
+    if settings.purvai_mode != "local":
+        raise ApiStatusError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="SERVICE_UNAVAILABLE",
+            message="Database backup and restore are only available in local mode.",
+        )
+    return Path(settings.resolved_database_path)
+
+
+def _backups_dir(db_path: Path) -> Path:
+    bdir = db_path.parent / "backups"
+    bdir.mkdir(parents=True, exist_ok=True)
+    return bdir
+
+
+def _sqlite_backup(src_path: Path, dst_path: Path) -> None:
+    src = sqlite3.connect(str(src_path))
+    dst = sqlite3.connect(str(dst_path))
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+
+
+class RestoreIn(BaseModel):
+    """Body for POST /api/v1/db/restore."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    filename: str = Field(min_length=1, max_length=120)
+
+
+class ClearDataIn(BaseModel):
+    """Body for DELETE /api/v1/data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirm: str
+
+
+@router.post("/db/backup")
+async def create_backup(request: Request) -> dict[str, Any]:
+    """Create a timestamped SQLite online backup (local mode only, keeps last 7)."""
+    db_path = _require_local_mode(request)
+    bdir = _backups_dir(db_path)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    target = bdir / f"purvai-{stamp}.db"
+    counter = 1
+    while target.exists():
+        target = bdir / f"purvai-{stamp}-{counter}.db"
+        counter += 1
+
+    _sqlite_backup(db_path, target)
+
+    # Keep last 7 backups
+    backups = sorted(bdir.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for old in backups[7:]:
+        old.unlink(missing_ok=True)
+
+    return {
+        "filename": target.name,
+        "byte_size": target.stat().st_size,
+        "created_at": utc_now_iso(),
+    }
+
+
+@router.get("/db/backups")
+async def list_backups(request: Request) -> list[dict[str, Any]]:
+    """List available local SQLite backups newest first (local mode only)."""
+    db_path = _require_local_mode(request)
+    bdir = _backups_dir(db_path)
+    backups = sorted(bdir.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return [
+        {
+            "filename": p.name,
+            "byte_size": p.stat().st_size,
+            "created_at": datetime.fromtimestamp(p.stat().st_mtime, tz=UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
+        }
+        for p in backups
+    ]
+
+
+@router.post("/db/restore")
+async def restore_backup(request: Request, body: RestoreIn) -> dict[str, str]:
+    """Verify and atomically restore a local SQLite backup (local mode only)."""
+    db_path = _require_local_mode(request)
+    bdir = _backups_dir(db_path)
+
+    if not _BACKUP_NAME_RE.match(body.filename) or "/" in body.filename or "\\" in body.filename:
+        raise ApiStatusError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Invalid backup filename.",
+        )
+
+    candidate = (bdir / body.filename).resolve()
+    if not candidate.is_relative_to(bdir.resolve()):
+        raise ApiStatusError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Invalid backup path.",
+        )
+    if not candidate.is_file():
+        raise ApiStatusError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="NOT_FOUND",
+            message=f"Backup '{body.filename}' not found.",
+        )
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp_copy = Path(td) / "verify.db"
+        shutil.copy2(candidate, tmp_copy)
+
+        conn = sqlite3.connect(str(tmp_copy))
+        try:
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()
+            if not integrity or integrity[0] != "ok":
+                raise ApiStatusError(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    code="VALIDATION_ERROR",
+                    message="Backup failed SQLite integrity_check.",
+                )
+            alembic_row = conn.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
+            if not alembic_row:
+                raise ApiStatusError(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    code="VALIDATION_ERROR",
+                    message="Backup is missing alembic_version metadata.",
+                )
+        except sqlite3.DatabaseError as exc:
+            raise ApiStatusError(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                code="VALIDATION_ERROR",
+                message=f"Invalid SQLite backup: {exc}",
+            ) from exc
+        finally:
+            conn.close()
+
+        # Safety backup of current DB, dispose pool, swap atomically
+        safety = bdir / f"purvai-pre-restore-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.db"
+        _sqlite_backup(db_path, safety)
+
+        engine = request.app.state.engine
+        engine.dispose()
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(f"{db_path}{suffix}")
+            sidecar.unlink(missing_ok=True)
+        os.replace(tmp_copy, db_path)
+
+        if not run_quick_check(engine):
+            raise ApiStatusError(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                code="INTERNAL_ERROR",
+                message="Restored database failed quick_check.",
+            )
+
+    return {"restored": body.filename, "status": "ok"}
+
+
+@router.delete("/data")
+async def clear_all_data(request: Request, body: ClearDataIn) -> dict[str, bool]:
+    """Delete the current household and all cascaded records after explicit confirmation."""
+    if body.confirm != "DELETE":
+        raise ApiStatusError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message='Confirmation body must be {"confirm": "DELETE"}.',
+        )
+
+    engine = request.app.state.engine
+    with Session(engine) as session:
+        household, _, _ = resolve_existing_household(request, session)
+        session.delete(household)
+        session.commit()
+
+    return {"deleted": True}
