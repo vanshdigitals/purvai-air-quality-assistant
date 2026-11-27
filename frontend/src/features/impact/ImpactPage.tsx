@@ -92,7 +92,12 @@ export default function ImpactPage() {
           <div className="mt-1 text-2xl font-semibold">{summary ? summary.trips : "—"}</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-sm text-text-2">CO₂ avoided</div>
+          <div className="flex items-center justify-between text-sm text-text-2">
+            <span>CO₂ avoided</span>
+            <span className="rounded-full border border-border bg-subtle px-2 py-0.5 text-xs">
+              Estimated
+            </span>
+          </div>
           <div className="mt-1 text-2xl font-semibold">
             {summary ? `${summary.co2_saved_kg.toFixed(2)} kg` : "—"}
           </div>

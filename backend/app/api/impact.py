@@ -83,6 +83,7 @@ def _to_out(row: ActivityLog) -> ActivityOut:
 async def post_activity(request: Request, body: ActivityIn) -> ActivityOut:
     """Log a commute or outdoor-exposure activity for the household."""
     engine = request.app.state.engine
+    co2_enabled = bool(getattr(request.app.state.settings, "co2_estimates_enabled", True))
     with Session(engine) as session:
         household, _, _ = resolve_existing_household(request, session)
         row = svc.log_activity(
@@ -94,6 +95,7 @@ async def post_activity(request: Request, body: ActivityIn) -> ActivityOut:
             distance_km=body.distance_km,
             hours=body.hours,
             occurred_at=body.occurred_at,
+            co2_estimates_enabled=co2_enabled,
         )
         return _to_out(row)
 

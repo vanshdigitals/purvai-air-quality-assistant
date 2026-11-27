@@ -1,5 +1,6 @@
 """Tests for PDF and CSV report generation (FR-13)."""
 
+import pytest
 from app.db.models import Report
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -38,31 +39,45 @@ def _seed_household_and_activity(client: TestClient) -> None:
     assert act.status_code == 201
 
 
-def test_post_report_pdf_and_metadata(local_client: TestClient) -> None:
-    """POST /reports/pdf returns valid %PDF- bytes and records report metadata."""
+@pytest.mark.parametrize("days", [1, 7])
+def test_post_report_pdf_variants_and_metadata(local_client: TestClient, days: int) -> None:
+    """POST /reports/pdf returns valid %PDF- bytes, page count, and records metadata."""
     _seed_household_and_activity(local_client)
 
-    resp = local_client.post("/api/v1/reports/pdf?days=7")
+    resp = local_client.post(f"/api/v1/reports/pdf?days={days}")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/pdf")
     assert resp.content.startswith(b"%PDF-")
+    # fpdf2 writes /Count 1 for 1 page and FlateDecode-compresses content streams
+    assert b"/Type /Page" in resp.content
+    assert b"/Count 1" in resp.content
+    import re
+    import zlib
+
+    streams = re.findall(rb"stream\r?\n(.*?)\r?\nendstream", resp.content, flags=re.DOTALL)
+    decompressed = b"".join(zlib.decompress(s) for s in streams)
+    assert b"Purvai Air Quality Report" in decompressed
+    assert f"last {days} days".encode() in decompressed
 
     engine = local_client.app.state.engine  # type: ignore[union-attr]
     with Session(engine) as session:
         rows = session.exec(select(Report)).all()
     assert len(rows) == 1
     assert rows[0].format == "pdf"
-    assert rows[0].days == 7
+    assert rows[0].days == days
     assert rows[0].byte_size == len(resp.content)
 
 
-def test_post_report_csv_bom_and_formula_guard(local_client: TestClient) -> None:
-    """POST /reports/csv returns UTF-8 BOM CSV and neutralizes formula prefixes."""
+@pytest.mark.parametrize("prefix", ["=", "+", "-", "@"])
+def test_post_report_csv_quoting_bom_and_formula_guard(
+    local_client: TestClient,
+    prefix: str,
+) -> None:
+    """POST /reports/csv returns UTF-8 BOM RFC 4180 CSV, quotes commas, and guards formulas."""
     _seed_household_and_activity(local_client)
-    # Log an activity with a formula-like kind to verify CSV injection guard
     inj = local_client.post(
         "/api/v1/activities",
-        json={"kind": "=cmd|' /C calc'!A0", "hours": 1.0},
+        json={"kind": f"{prefix}SUM(A1),test", "hours": 1.0},
     )
     assert inj.status_code == 201
 
@@ -71,7 +86,7 @@ def test_post_report_csv_bom_and_formula_guard(local_client: TestClient) -> None
     assert resp.content.startswith(b"\xef\xbb\xbf")
     text = resp.content.decode("utf-8-sig")
     assert "Purvai Activity Log Export" in text
-    assert "\t=cmd" in text
+    assert f'"\t{prefix}SUM(A1),test"' in text
 
 
 def test_reports_invalid_days_returns_400(local_client: TestClient) -> None:

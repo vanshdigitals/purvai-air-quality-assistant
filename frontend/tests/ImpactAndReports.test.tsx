@@ -17,7 +17,7 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("ImpactPage and ReportsPage", () => {
-  it("logs a trip, toggles table view, and deletes an activity", async () => {
+  it("logs a trip, shows Estimated chip & Saving pending state, toggles table view, and deletes", async () => {
     const user = userEvent.setup();
     const activities = [
       {
@@ -31,6 +31,7 @@ describe("ImpactPage and ReportsPage", () => {
         occurred_at: "2026-11-27T10:00:00Z",
       },
     ];
+    let resolvePost!: (res: Response) => void;
 
     vi.stubGlobal(
       "fetch",
@@ -53,7 +54,9 @@ describe("ImpactPage and ReportsPage", () => {
           return new Response(null, { status: 204 });
         }
         if (url.includes("/activities") && init?.method === "POST") {
-          return new Response(JSON.stringify(activities[0]), { status: 201 });
+          return new Promise<Response>((r) => {
+            resolvePost = r;
+          });
         }
         if (url.includes("/activities")) {
           return new Response(JSON.stringify(activities), { status: 200 });
@@ -65,6 +68,13 @@ describe("ImpactPage and ReportsPage", () => {
     renderWithClient(<ImpactPage />);
 
     expect(await screen.findByText("1.38 kg")).toBeInTheDocument();
+    expect(screen.getByText("Estimated")).toBeInTheDocument();
+
+    // Pending state while POST /activities is in flight
+    await user.click(screen.getByRole("button", { name: "Log trip" }));
+    expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+    resolvePost(new Response(JSON.stringify(activities[0]), { status: 201 }));
+    expect(await screen.findByRole("button", { name: "Log trip" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Table view" }));
     expect(await screen.findByText("1380 g")).toBeInTheDocument();
@@ -74,7 +84,34 @@ describe("ImpactPage and ReportsPage", () => {
     expect(await screen.findByText(/No trips logged/i)).toBeInTheDocument();
   });
 
-  it("shows demo banner when mode is demo and runs clear-data confirmation", async () => {
+  it("validates trip form error response from server", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/activities") && init?.method === "POST") {
+          return new Response(
+            JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "Invalid distance" } }),
+            { status: 422 }
+          );
+        }
+        if (url.includes("/impact/summary")) {
+          return new Response(
+            JSON.stringify({ trips: 0, co2_saved_g: 0, co2_saved_kg: 0, distance_km: 0, days: 7 }),
+            { status: 200 }
+          );
+        }
+        return new Response("[]", { status: 200 });
+      })
+    );
+
+    renderWithClient(<ImpactPage />);
+    await user.click(screen.getByRole("button", { name: "Log trip" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid distance");
+  });
+
+  it("hides backups in demo, previews import counts, and disables clear button until DELETE typed", async () => {
     const user = userEvent.setup();
 
     vi.stubGlobal(
@@ -94,6 +131,12 @@ describe("ImpactPage and ReportsPage", () => {
             { status: 200 }
           );
         }
+        if (url.includes("/data/import?dry_run=true") && init?.method === "POST") {
+          return new Response(
+            JSON.stringify({ dry_run: true, counts: { members: 2, locations: 1, activities: 3 } }),
+            { status: 200 }
+          );
+        }
         if (url.includes("/data") && init?.method === "DELETE") {
           return new Response(JSON.stringify({ deleted: true }), { status: 200 });
         }
@@ -104,9 +147,30 @@ describe("ImpactPage and ReportsPage", () => {
     renderWithClient(<ReportsPage />);
 
     expect(await screen.findByText(/Demo mode uses temporary storage/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Local SQLite backups" })).not.toBeInTheDocument();
 
+    // Import preview counts
+    const file = new File(
+      [JSON.stringify({ schema: 1, household: {}, activities: [] })],
+      "exp.json",
+      {
+        type: "application/json",
+      }
+    );
+    const fileInput = screen.getByLabelText("Choose JSON export file");
+    await user.upload(fileInput, file);
+    expect(
+      await screen.findByText(/2 member groups, 1 locations, 3 activities/i)
+    ).toBeInTheDocument();
+
+    // Clear-data button disabled until DELETE is typed
     await user.click(screen.getByRole("button", { name: "Delete all household data" }));
-    await user.click(screen.getByRole("button", { name: "Confirm delete all data" }));
+    const confirmBtn = screen.getByRole("button", { name: "Confirm delete all data" });
+    expect(confirmBtn).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    expect(confirmBtn).toBeEnabled();
+    await user.click(confirmBtn);
     expect(await screen.findByText(/All household data deleted/i)).toBeInTheDocument();
   });
 });

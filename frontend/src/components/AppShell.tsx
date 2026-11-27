@@ -50,10 +50,10 @@ export function AppShell() {
 
   useEffect(() => {
     const err = householdQuery.error;
-    if (err instanceof ApiError && err.status === 404) {
+    if (err instanceof ApiError && err.status === 404 && location.pathname !== "/reports") {
       void navigate("/welcome", { replace: true });
     }
-  }, [householdQuery.error, navigate]);
+  }, [householdQuery.error, location.pathname, navigate]);
 
   useEffect(() => {
     if (!menuOpen) return;

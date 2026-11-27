@@ -25,17 +25,24 @@ def log_activity(
     distance_km: float | None,
     hours: float | None,
     occurred_at: str | None = None,
+    co2_estimates_enabled: bool = True,
 ) -> ActivityLog:
-    """Create an ActivityLog row, computing co2_saved_g when possible."""
+    """Create an ActivityLog row, computing co2_saved_g when CO2 estimates are enabled."""
     co2_saved_g: float | None = None
     factor_id: str | None = None
 
-    if distance_km is not None and distance_km > 0 and mode and replaced_mode:
+    if (
+        co2_estimates_enabled
+        and distance_km is not None
+        and distance_km > 0
+        and mode
+        and replaced_mode
+    ):
         chosen = get_factor(session, mode)
         baseline = get_factor(session, replaced_mode)
         if chosen is not None and baseline is not None:
             factor_id = chosen.id
-            co2_saved_g = max(0.0, (baseline.g_co2e_per_pkm - chosen.g_co2e_per_pkm) * distance_km)
+            co2_saved_g = (baseline.g_co2e_per_pkm - chosen.g_co2e_per_pkm) * distance_km
 
     entry = ActivityLog(
         household_id=household.id,

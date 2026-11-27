@@ -32,6 +32,7 @@ export default function ReportsPage() {
   const [pendingImport, setPendingImport] = useState<unknown | null>(null);
   const [dryRunPreview, setDryRunPreview] = useState<ImportDryRunResponse | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   const healthQuery = useQuery({
     queryKey: ["health"],
@@ -70,6 +71,7 @@ export default function ReportsPage() {
     mutationFn: deleteAllData,
     onSuccess: () => {
       setConfirmClear(false);
+      setClearConfirmText("");
       localStorage.removeItem(HOUSEHOLD_STORAGE_KEY);
       setStatusMsg("All household data deleted.");
       void queryClient.invalidateQueries();
@@ -275,21 +277,37 @@ export default function ReportsPage() {
       <div className="rounded-lg border border-red-300 bg-surface p-4 space-y-3">
         <h2 className="text-base font-semibold text-red-700">Clear all data</h2>
         {confirmClear ? (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => clearMutation.mutate()}
-              className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white"
-            >
-              Confirm delete all data
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmClear(false)}
-              className="rounded border border-border px-3 py-2 text-sm"
-            >
-              Cancel
-            </button>
+          <div className="space-y-3">
+            <label className="block text-sm">
+              <span>Type DELETE to confirm</span>
+              <input
+                aria-label="Type DELETE to confirm"
+                type="text"
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                className="mt-1 block rounded border border-border bg-bg px-3 py-1.5"
+              />
+            </label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={clearConfirmText !== "DELETE" || clearMutation.isPending}
+                onClick={() => clearMutation.mutate()}
+                className="purvai-btn purvai-btn-danger rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                Confirm delete all data
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmClear(false);
+                  setClearConfirmText("");
+                }}
+                className="rounded border border-border px-3 py-2 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         ) : (
           <button

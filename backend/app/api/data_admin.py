@@ -53,7 +53,7 @@ class ImportActivityIn(BaseModel):
     replaced_mode: str | None = None
     distance_km: float | None = Field(default=None, ge=0.0, le=500.0)
     hours: float | None = Field(default=None, ge=0.0, le=24.0)
-    co2_saved_g: float | None = Field(default=None, ge=0.0)
+    co2_saved_g: float | None = Field(default=None)
     occurred_at: str | None = None
 
 
@@ -399,11 +399,11 @@ async def restore_backup(request: Request, body: RestoreIn) -> dict[str, str]:
                     message="Backup failed SQLite integrity_check.",
                 )
             alembic_row = conn.execute("SELECT version_num FROM alembic_version LIMIT 1").fetchone()
-            if not alembic_row:
+            if not alembic_row or alembic_row[0] != "0003_emission_factor_seed":
                 raise ApiStatusError(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    code="VALIDATION_ERROR",
-                    message="Backup is missing alembic_version metadata.",
+                    status_code=status.HTTP_409_CONFLICT,
+                    code="SCHEMA_MISMATCH",
+                    message="Backup alembic_version does not match current schema.",
                 )
         except sqlite3.DatabaseError as exc:
             raise ApiStatusError(
