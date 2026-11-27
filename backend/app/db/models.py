@@ -83,6 +83,9 @@ class Location(SQLModel, table=True):
     label: str = Field(max_length=60, nullable=False)
     lat: float = Field(nullable=False)
     lon: float = Field(nullable=False)
+    city: str | None = Field(default=None, max_length=120, nullable=True)
+    admin1: str | None = Field(default=None, max_length=120, nullable=True)
+    admin2: str | None = Field(default=None, max_length=120, nullable=True)
     is_primary: bool = Field(default=False, nullable=False)
 
 
@@ -94,7 +97,8 @@ class SettingsRecord(SQLModel, table=True):
         CheckConstraint("theme IN ('light', 'dark', 'system')", name="ck_settings_theme"),
         CheckConstraint(
             "commute_mode IN ('car_petrol', 'scooter', 'motorcycle', 'auto_cng', 'auto_diesel', "
-            "'bus_diesel', 'bus_diesel_ac', 'bus_cng', 'metro', 'walk', 'cycle')",
+            "'bus_diesel', 'bus_diesel_ac', 'bus_cng', 'metro', 'walk', 'cycle', "
+            "'bus', 'car', 'auto', 'none')",
             name="ck_settings_commute_mode",
         ),
         CheckConstraint("ai_enabled IN (0, 1)", name="ck_settings_ai_enabled"),
@@ -183,7 +187,7 @@ class DailyPlan(SQLModel, table=True):
             name="ck_daily_plan_verdict_level",
         ),
         CheckConstraint(
-            "generated_by IN ('gemini', 'groq', 'template')",
+            "generated_by IN ('rules', 'gemini', 'groq', 'template')",
             name="ck_daily_plan_generated_by",
         ),
         UniqueConstraint("household_id", "plan_date", name="uq_daily_plan_household_date"),

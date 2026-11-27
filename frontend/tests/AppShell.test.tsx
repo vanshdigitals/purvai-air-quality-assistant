@@ -7,23 +7,47 @@ import { describe, expect, it, vi } from "vitest";
 import { AppShell } from "../src/components/AppShell";
 
 function renderShell(mode: "local" | "demo" = "local", initialEntry = "/today") {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response(
-      JSON.stringify({
-        status: "ok",
-        app: "purvai",
-        version: "0.1.0",
-        mode,
-        database: {
-          status: "ok",
-          storage: mode === "local" ? "persistent" : "temporary",
-          schema_revision: "0001_initial_schema",
-        },
-        time: "2026-11-27T10:00:00Z",
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    )
-  );
+  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.endsWith("/health")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            status: "ok",
+            app: "purvai",
+            version: "0.1.0",
+            mode,
+            database: {
+              status: "ok",
+              storage: mode === "local" ? "persistent" : "temporary",
+              schema_revision: "0002_location_admin",
+            },
+            time: "2026-11-27T10:00:00Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          id: "hh-1",
+          mode,
+          updated_at: "2026-11-27T10:00:00Z",
+          members: [{ kind: "adult", count: 1 }],
+          location: { label: "Noida", lat: 28.62, lon: 77.37, city: "Noida" },
+          settings: {
+            theme: "system",
+            commute_mode: "metro",
+            ai_enabled: true,
+            save_chat: false,
+            reduce_motion: false,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+  });
 
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },

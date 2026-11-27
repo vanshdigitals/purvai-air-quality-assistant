@@ -1,3 +1,9 @@
-import { applyThemeToDocument, getStoredTheme } from "./theme";
+import {
+  applyReduceMotionToDocument,
+  applyThemeToDocument,
+  getStoredReduceMotion,
+  getStoredTheme,
+} from "./theme";
 
 applyThemeToDocument(getStoredTheme());
+applyReduceMotionToDocument(getStoredReduceMotion());

@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 STATUS_CODE_MAP: dict[int, str] = {
     status.HTTP_400_BAD_REQUEST: "BAD_REQUEST",
     status.HTTP_404_NOT_FOUND: "NOT_FOUND",
+    status.HTTP_409_CONFLICT: "CONFLICT",
     status.HTTP_413_CONTENT_TOO_LARGE: "PAYLOAD_TOO_LARGE",
     status.HTTP_422_UNPROCESSABLE_CONTENT: "VALIDATION_ERROR",
     status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMIT_EXCEEDED",

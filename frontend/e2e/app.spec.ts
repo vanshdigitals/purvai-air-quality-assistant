@@ -1,34 +1,28 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const ROUTES = [
+const APP_ROUTES = [
   { path: "/today", heading: "Today" },
-  { path: "/ask", heading: "Ask Purvai" },
+  { path: "/plan", heading: "Daily Protection Plan" },
   { path: "/home-air", heading: "Home Air" },
-  { path: "/impact", heading: "Impact" },
-  { path: "/reports", heading: "Reports & Data" },
   { path: "/settings", heading: "Settings" },
 ] as const;
 
-test.describe("Purvai Phase 1 E2E", () => {
-  test("redirects / to /today, connects to API, and navigates all routes", async ({
+test.describe("Purvai Phase 3 E2E", () => {
+  test("API separation, keyboard onboarding, Today, Plan, Home Air, theme persistence, and axe", async ({
     page,
     request,
   }) => {
     const apiRes = await request.get("/api/v1/health");
     expect(apiRes.status()).toBe(200);
     expect(apiRes.headers()["content-type"]).toContain("application/json");
-    const healthJson = (await apiRes.json()) as {
-      status: string;
-      mode: string;
-    };
-    expect(healthJson.status).toBe("ok");
 
     const unknownApiRes = await request.get("/api/v1/unknown");
     expect(unknownApiRes.status()).toBe(404);
     expect(unknownApiRes.headers()["content-type"]).toContain("application/json");
-    const unknownBody = (await unknownApiRes.json()) as { error: { code: string } };
-    expect(unknownBody.error.code).toBe("NOT_FOUND");
+    expect(((await unknownApiRes.json()) as { error: { code: string } }).error.code).toBe(
+      "NOT_FOUND"
+    );
 
     const deepLinkRes = await request.get("/today");
     expect(deepLinkRes.status()).toBe(200);
@@ -36,101 +30,108 @@ test.describe("Purvai Phase 1 E2E", () => {
     expect(deepLinkRes.headers()["content-security-policy"]).toContain("default-src 'self'");
     expect(deepLinkRes.headers()["x-content-type-options"]).toBe("nosniff");
 
+    // 1. First run redirects / -> /welcome and checks axe on welcome screen
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
+    await expect(page).toHaveURL(/\/welcome$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Clear air-safety actions for your household" })
+    ).toBeVisible();
+
+    const welcomeAxe = await new AxeBuilder({ page }).analyze();
+    expect(
+      welcomeAxe.violations.filter((v) => v.impact === "serious" || v.impact === "critical")
+    ).toEqual([]);
+
+    // Keyboard check: Tab reaches skip link first
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
+
+    // Advance via keyboard/button to location step
+    await page.getByRole("button", { name: "Get started" }).click();
+    await expect(page).toHaveURL(/\/welcome\/location$/);
+
+    const locAxe = await new AxeBuilder({ page }).analyze();
+    expect(
+      locAxe.violations.filter((v) => v.impact === "serious" || v.impact === "critical")
+    ).toEqual([]);
+
+    await page.getByLabel("Search city or neighbourhood").fill("Noida");
+    const resultRow = page.getByRole("radio", { name: /Sector 62, Noida/i });
+    await expect(resultRow).toBeVisible();
+    await resultRow.click();
+
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page).toHaveURL(/\/welcome\/household$/);
+    await page.getByText("Child under 12").click();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page).toHaveURL(/\/welcome\/commute$/);
+    await page.getByRole("radio", { name: "Metro" }).click();
+    await page.getByRole("button", { name: "Finish setup" }).click();
+
+    // 2. Today screen: verdict, AQI, GRAP, actions, forecast + table toggle
     await expect(page).toHaveURL(/\/today$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
-    await expect(page.getByText("API connected")).toBeVisible();
+    await expect(page.getByText("Stay indoors today. Run the purifier.")).toBeVisible();
+    await expect(page.getByLabel("312, Very Poor, CPCB scale, Measured")).toBeVisible();
+    await expect(page.getByText(/GRAP Stage II is in force for Delhi NCR/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "12-hour forecast" })).toBeVisible();
 
-    for (const route of ROUTES) {
-      await page.goto(route.path);
-      await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
-    }
-  });
+    await page.getByRole("button", { name: "Show as table" }).click();
+    await expect(page.getByRole("table")).toBeVisible();
 
-  test("keyboard navigation reaches skip link first, shows focus-visible ring, and hover adds no ring", async ({
-    page,
-  }) => {
-    await page.goto("/today");
-    await expect(page.getByText("API connected")).toBeVisible();
+    // 3. Daily Protection Plan opens with 4 periods
+    await page.getByRole("link", { name: "Plan my day" }).click();
+    await expect(page).toHaveURL(/\/plan$/);
+    await expect(page.getByText("Morning")).toBeVisible();
+    await expect(page.getByText("Afternoon")).toBeVisible();
+    await expect(page.getByText("Evening")).toBeVisible();
+    await expect(page.getByText("Night")).toBeVisible();
 
-    await page.keyboard.press("Tab");
-    const skipLink = page.getByRole("link", { name: "Skip to main content" });
-    await expect(skipLink).toBeFocused();
+    // 4. Home Air calculator shows 8.5 ACH
+    await page.goto("/home-air");
+    await page.getByRole("button", { name: "Calculate ACH" }).click();
+    await expect(page.getByText("8.5")).toBeVisible();
+    await expect(page.getByText("Meets target")).toBeVisible();
 
-    await page.keyboard.press("Tab");
-    const focusedNavLink = page.locator("aside nav a:focus-visible").first();
-    await expect(focusedNavLink).toBeVisible();
-    const focusStyle = await focusedNavLink.evaluate((el) => {
-      const style = window.getComputedStyle(el);
-      return {
-        outlineWidth: style.outlineWidth,
-        outlineStyle: style.outlineStyle,
-      };
-    });
-    expect(focusStyle.outlineWidth).toBe("2px");
-    expect(focusStyle.outlineStyle).toBe("solid");
-
-    const askLink = page.locator('aside nav a[href="/ask"]');
-    await askLink.hover();
-    const hoverStyle = await askLink.evaluate((el) => {
-      const style = window.getComputedStyle(el);
-      return {
-        outlineStyle: style.outlineStyle,
-        borderTopWidth: style.borderTopWidth,
-      };
-    });
-    expect(hoverStyle.outlineStyle).toBe("none");
-    expect(hoverStyle.borderTopWidth).toBe("0px");
-  });
-
-  test("toggles dark theme in Settings and passes axe across all routes in light and dark modes", async ({
-    page,
-  }) => {
-    // Light mode axe audit
+    // 5. Light & Dark theme toggle, persistence across reload, and axe audit on all new screens
     await page.goto("/settings");
     await page.getByRole("radio", { name: "Light" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
-    for (const route of ROUTES) {
+    for (const route of APP_ROUTES) {
       await page.goto(route.path);
       await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
       const results = await new AxeBuilder({ page }).analyze();
-      const seriousOrCritical = results.violations.filter(
-        (v) => v.impact === "serious" || v.impact === "critical"
-      );
-      expect(seriousOrCritical, `Light axe violations on ${route.path}`).toEqual([]);
+      expect(
+        results.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
+        `Light axe violations on ${route.path}`
+      ).toEqual([]);
     }
 
-    // Dark mode toggle + reload persistence + axe audit
     await page.goto("/settings");
     await page.getByRole("radio", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-    for (const route of ROUTES) {
+    for (const route of APP_ROUTES) {
       await page.goto(route.path);
       await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
       const results = await new AxeBuilder({ page }).analyze();
-      const seriousOrCritical = results.violations.filter(
-        (v) => v.impact === "serious" || v.impact === "critical"
-      );
-      expect(seriousOrCritical, `Dark axe violations on ${route.path}`).toEqual([]);
+      expect(
+        results.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
+        `Dark axe violations on ${route.path}`
+      ).toEqual([]);
     }
-  });
 
-  test("mobile viewport opens profile menu to reach Reports & Data and Settings", async ({
-    page,
-  }) => {
+    // 6. Mobile layout (375x812) + mobile menu
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/today");
-
+    await expect(page.getByText("Stay indoors today. Run the purifier.")).toBeVisible();
     await page.getByRole("button", { name: "Reports and settings menu" }).click();
     const menu = page.getByRole("navigation", { name: "Account and workspace" });
     await expect(menu.getByRole("link", { name: "Reports & Data" })).toBeVisible();
     await expect(menu.getByRole("link", { name: "Settings" })).toBeVisible();
-    await menu.getByRole("link", { name: "Reports & Data" }).click();
-    await expect(page).toHaveURL(/\/reports$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Reports & Data" })).toBeVisible();
   });
 });

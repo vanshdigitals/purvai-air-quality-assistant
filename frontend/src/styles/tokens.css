@@ -13,6 +13,7 @@
   --surface: #ffffff;
   --raised: #ffffff;
   --shadow-raised: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --hero-gradient: linear-gradient(180deg, #f7f8fa 0%, #ffffff 100%);
   --subtle: #eef1f5;
   --text: #0f172a;
   --text-2: #475569;
@@ -56,13 +57,15 @@
   --info: #175cd3;
   --info-tint: #eff8ff;
 
-  /* AQI Indicator Tokens (reserved for Phase 3+) */
+  /* AQI Indicator Tokens */
   --aqi-good: #2e9e5b;
   --aqi-satisfactory: #8bc34a;
   --aqi-moderate: #e8c547;
   --aqi-poor: #e8892b;
   --aqi-very-poor: #d64545;
+  --aqi-very-poor-chip: #cf4040;
   --aqi-severe: #8e2430;
+  --aqi-band-opacity: 0.08;
 
   /* Typography */
   --font-heading: "Instrument Sans Variable", "Instrument Sans", sans-serif;
@@ -86,6 +89,7 @@
   --surface: #121a2b;
   --raised: #1a2438;
   --shadow-raised: none;
+  --hero-gradient: #1a2438;
   --subtle: #1a2438;
   --text: #e6eaf2;
   --text-2: #a3adc2;
@@ -126,4 +130,6 @@
   --success-tint: #193338;
   --info: #7fb2e5;
   --info-tint: #212f45;
+
+  --aqi-band-opacity: 0.12;
 }

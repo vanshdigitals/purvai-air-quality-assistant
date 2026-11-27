@@ -6,7 +6,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 ```json
 {"error":{"code":"VALIDATION_ERROR","message":"lat must be between -90 and 90","request_id":"r-7f3a"}}
 ```
-200/201/204 OK, created, deleted. 400 bad input. 413 body over 64 KB (import 5 MB). 422 schema error. 404 not found. 409 import version conflict. 429 with `Retry-After`. 502 provider failed, no cache. 503 feature disabled in this mode. No stack traces.
+200/201/204 OK, created, deleted. 400 bad input (`HOUSEHOLD_HEADER_REQUIRED` when demo header missing/invalid). 413 body over 64 KB (import 5 MB). 422 schema/region error (`UNSUPPORTED_REGION`, `HOUSEHOLD_REQUIRED`). 404 not found (`NOT_FOUND`, `HOUSEHOLD_NOT_FOUND`). 409 import version conflict. 429 (`RATE_LIMIT_EXCEEDED`) with `Retry-After`. 502 provider failed, no cache (`PROVIDER_UNAVAILABLE`). 503 feature disabled in this mode. No stack traces.
 
 ## Endpoints
 | Method and path | Purpose | Req |
@@ -17,9 +17,9 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
 | GET /air/history?location_id&days=7 | History | FR-12 |
 | GET /locations/search?q | Geocoding proxy | FR-01 |
 | GET, PUT /household | Members, location, settings | FR-01 |
-| POST /plan | Today's plan | FR-06 |
+| POST /plan | Today's or tomorrow's plan | FR-06 |
 | POST /chat; DELETE /conversations | Ask Purvai; delete history | FR-08, FR-17 |
-| POST /home-air/calc | ACH | FR-09 |
+| POST /home-air/calc; GET /home-air/tips | ACH and indoor tips | FR-09 |
 | GET, POST /activities; DELETE /activities/{id} | Activity log | FR-11 |
 | GET /impact/summary?days=7 | Totals | FR-11 |
 | POST /reports/pdf, /reports/csv | Files | FR-13 |
@@ -34,7 +34,7 @@ Base `http://localhost:8000/api/v1` or `https://<service>.run.app/api/v1`. JSON 
   "app": "purvai",
   "version": "0.1.0",
   "mode": "local",
-  "database": { "status": "ok", "storage": "persistent", "schema_revision": "0001_initial_schema" },
+  "database": { "status": "ok", "storage": "persistent", "schema_revision": "0002_location_admin" },
   "time": "2026-11-27T10:00:00Z"
 }
 ```
@@ -74,6 +74,22 @@ Query: `lat` (-90 to 90), `lon` (-180 to 180), both required. Locations outside 
 }
 ```
 Modelled fallback returns `source: {"provider":"Open-Meteo (CAMS)","station":null,"distance_km":null}`, `grap: null`, and `attribution: ["Open-Meteo","CAMS"]`.
+
+### GET /air/forecast
+Query: `lat`, `lon` (required, India extent else 422 `UNSUPPORTED_REGION`), `hours` (`1..48`, default `12`). Proxies Open-Meteo Air Quality hourly forecast, caches 48 hours for 30 min in `aqi_observation`, computes CPCB NAQI per hour, and returns `scale: "CPCB_NAQI"`, `source_label: "Modelled"`, `indicative: true`, `attribution: ["Open-Meteo","CAMS"]`, `generated_at`, `hours: [{time, aqi, aqi_is_floor, category, dominant_pollutant}]`, and `lowest: {time, aqi, category}`.
+
+### GET /locations/search
+Query: `q` (`2..60` chars). Proxies Open-Meteo Geocoding filtered to `IN`, cached in memory for 24 h (rate limited `30/min` per IP). Returns list of `{label, lat, lon, city, admin1, admin2, nearest_station_km}` (`nearest_station_km` computed from cached CPCB stations within 2 h when available, else `null`).
+
+### GET, PUT /household
+In `local` mode returns/upserts the single household (`404 HOUSEHOLD_NOT_FOUND` on `GET` before onboarding). In `demo` mode requires valid UUIDv4 `X-Purvai-Household` header (`400 HOUSEHOLD_HEADER_REQUIRED` if missing/invalid). Validates `members` (sum >= 1, unique kinds), `location` (India bounds else `422 UNSUPPORTED_REGION`), and `settings` (`theme`, `commute_mode`, `ai_enabled`, `save_chat`, `reduce_motion`).
+
+### POST /plan
+Body `{"day":"today"|"tomorrow"}`. Requires an existing household (`422 HOUSEHOLD_REQUIRED` if not onboarded). Computes 4 IST periods (`morning`, `afternoon`, `evening`, `night`) using worst-hour AQI and persists `daily_plan` (`generated_by: "rules"`) + `plan_item` rows (`tag: "rule"`). Response: `{plan_date, day, generated_by, generated_at, source_label, periods: [{period, start, end, level, aqi, past, items}]}`.
+
+### POST /home-air/calc and GET /home-air/tips
+`POST /home-air/calc` validates `{length_m, width_m, height_m, cadr_m3h}` and returns `{volume_m3, ach, target_ach: 5, meets_target, cadr_needed_m3h}`. `GET /home-air/tips?lat&lon` returns `{level, tips: [{tip_id, text}], ventilation_hour}` where `ventilation_hour` picks the cleanest forecast hour between `08:00` and `20:00` IST when forecast is available.
+
 ### POST /chat
 Request `{"message":"Can my son play outside at 5 pm?"}` (1 to 500 chars). Response: [ChatReply](AI_SCHEMAS.md#chatreply) plus `generated_by` (gemini, groq or template).
 ### POST /activities
@@ -85,4 +101,4 @@ Request `{"message":"Can my son play outside at 5 pm?"}` (1 to 500 chars). Respo
 Body `{"schema":1,"exported_at":...,"household":{...},"activities":[...]}`. `dry_run=true` returns counts. Unknown schema returns 409.
 
 ## Rate limits and boundaries
-slowapi per IP: AI 20/min, reports 10/min, others 120/min. The browser never calls external APIs or sees keys. Only `providers/` and `ai/` call out, with timeouts and validation.
+slowapi per IP: geocoding `/locations/search` 30/min, AI 20/min, reports 10/min, others 120/min. The browser never calls external APIs or sees keys. Only `providers/` and `ai/` call out, with timeouts and validation.

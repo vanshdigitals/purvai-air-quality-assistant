@@ -6,6 +6,7 @@ export function createQueryClient(): QueryClient {
       queries: {
         retry: 1,
         refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
       },
     },
   });

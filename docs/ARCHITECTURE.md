@@ -61,7 +61,11 @@ PM rows are baseline-verified. Gas rows come from the CPCB 2014 NAQI table and w
 | Poor | Exercise indoors; windows closed at peaks | Mostly indoors; mask outdoors |
 | Very Poor | No outdoor exercise; N95 outdoors | Stay indoors; purifier on |
 | Severe | Avoid going out | Stay indoors; doctor if symptoms |
-Sensitive members escalate one level earlier (capped at Severe). Outdoor workers get `mask_and_breaks` from Poor. Household verdict = strictest member. GRAP from `config/grap.json` `{region, stage, order_date, source_url, cities}`, edited by hand; included only when the chosen CPCB station's city is in `cities` (never inferred from AQI; invalid file logs an error and yields `grap: null`). Stages: I 201-300, II 301-400, III 401-450, IV above 450.
+Sensitive members escalate one level earlier (capped at Severe). Outdoor workers get `mask_and_breaks` from Poor. Household verdict = strictest member. GRAP from `config/grap.json` `{region, stage, order_date, source_url, cities}`, edited by hand; included when either the chosen CPCB station's city or the primary household location's `city`, `admin2`, or `admin1` matches `cities` (case-insensitive; never inferred from AQI; invalid file logs an error and yields `grap: null`). Stages: I 201-300, II 301-400, III 401-450, IV above 450.
+
+Daily Protection Plan periods use IST (`Asia/Kolkata`) windows: `morning` (06:00–12:00), `afternoon` (12:00–17:00), `evening` (17:00–21:00), and `night` (21:00–06:00 next day). Each period uses the worst-hour AQI within its window (`today` overrides the current active period when live `/air` AQI is worse) and runs the deterministic rules engine (`generated_by: "rules"`).
+
+For automated E2E tests without external network calls, `PURVAI_FAKE_PROVIDERS=true` switches providers to recorded JSON fixtures (`cpcb_noida.json`, `open_meteo_current_noida.json`, `open_meteo_forecast_noida.json`, `geocoding_noida.json`) in `local` mode only; enabling it in `demo` mode refuses startup.
 
 Action catalogue and deterministic mapping (order: sensitive actions when any of `child_u12`, `adult_65p`, `heart_lung` is present, then `mask_and_breaks` for `outdoor_worker` at Poor or worse, then general actions; deduplicated, `SUPERSEDES = {"stay_indoors": ["no_outdoor_exercise"]}` applied, and capped at 3; `headline` joins the first two texts):
 

@@ -2,8 +2,10 @@
 
 import asyncio
 import hashlib
+import json
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,11 +13,13 @@ import httpx
 
 from app.aqi.breakpoints import PollutantId
 from app.aqi.normalise import map_cpcb_pollutant, normalise_cpcb_value
+from app.config import REPO_ROOT
 from app.providers.base import CpcbStationReading, ProviderError
 
 CPCB_RESOURCE_URL = "https://api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
 IST_ZONE = ZoneInfo("Asia/Kolkata")
 PAGE_LIMIT = 1000
+FIXTURES_DIR = REPO_ROOT / "backend" / "tests" / "fixtures"
 
 
 def _first_present(record: dict[str, Any], *keys: str) -> Any:
@@ -145,14 +149,49 @@ def parse_cpcb_records(records: list[dict[str, Any]]) -> list[CpcbStationReading
     return readings
 
 
+def load_fake_cpcb_stations(
+    *, now: datetime | None = None, fixtures_dir: Path | None = None
+) -> list[CpcbStationReading]:
+    """Load synthetic CPCB fixtures with timestamps shifted to now - 30 min."""
+    base_dir = fixtures_dir or FIXTURES_DIR
+    records: list[dict[str, Any]] = []
+    for name in (
+        "cpcb_noida_synthetic.json",
+        "cpcb_delhi_synthetic.json",
+        "cpcb_prayagraj_synthetic.json",
+    ):
+        payload = json.loads((base_dir / name).read_text(encoding="utf-8"))
+        if isinstance(payload.get("records"), list):
+            records.extend(rec for rec in payload["records"] if isinstance(rec, dict))
+
+    fresh_time = (now or datetime.now(UTC)).replace(second=0, microsecond=0) - timedelta(minutes=30)
+    return [
+        CpcbStationReading(
+            station_id=r.station_id,
+            station_name=r.station_name,
+            city=r.city,
+            state=r.state,
+            lat=r.lat,
+            lon=r.lon,
+            observed_at=fresh_time,
+            pollutants=r.pollutants,
+        )
+        for r in parse_cpcb_records(records)
+    ]
+
+
 async def fetch_cpcb_stations(
     api_key: str,
     *,
     client: httpx.AsyncClient | None = None,
     limit: int = PAGE_LIMIT,
     timeout_s: float = 20.0,
+    fake_providers: bool = False,
+    now: datetime | None = None,
 ) -> list[CpcbStationReading]:
     """Fetch and paginate all CPCB station records within an overall timeout budget."""
+    if fake_providers:
+        return load_fake_cpcb_stations(now=now)
     all_records: list[dict[str, Any]] = []
     owns_client = client is None
     http_client = client or httpx.AsyncClient(timeout=timeout_s)

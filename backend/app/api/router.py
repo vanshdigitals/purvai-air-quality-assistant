@@ -4,10 +4,18 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.air import router as air_router
 from app.api.health import router as health_router
+from app.api.home_air import router as home_air_router
+from app.api.household import router as household_router
+from app.api.locations import router as locations_router
+from app.api.plan import router as plan_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(air_router)
+api_v1_router.include_router(household_router)
+api_v1_router.include_router(locations_router)
+api_v1_router.include_router(plan_router)
+api_v1_router.include_router(home_air_router)
 
 
 @api_v1_router.api_route(

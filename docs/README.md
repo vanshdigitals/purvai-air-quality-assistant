@@ -41,6 +41,8 @@ cd ..\frontend; npm ci; npm run dev   # http://localhost:5173
 | PURVAI_MODE | yes | local or demo |
 | DATABASE_PATH | no | empty (defaults to `<repo>/data/purvai.db` in local, `<temp>/purvai.db` in demo; relative paths resolve from repo root) |
 | DATA_GOV_IN_API_KEY | no (Phase 2) | free key |
+| CPCB_TIMEOUT_S | no | 20 |
+| PURVAI_FAKE_PROVIDERS | no | false (test-only in local mode; refused in demo) |
 | AI_PROVIDER / AI_MODEL | no | gemini / model ID from AI Studio |
 | AI_FALLBACK_PROVIDER / AI_FALLBACK_MODEL | no | groq / openai/gpt-oss-20b |
 | GEMINI_API_KEY, GROQ_API_KEY | no | AI off without them |
@@ -57,7 +59,7 @@ config/grap.json  frontend/src/{app,components,features,lib,styles}/  frontend/t
 ```
 
 ## Status and limitations
-Phase 2 complete; CPCB + Open-Meteo AQI engine, deterministic verdict rules, GRAP, SQLite cache, and `/api/v1/air` ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
+Phase 3 complete; onboarding, household and location search, Today screen, 12-hour forecast chart/table, Daily Protection Plan, Home Air ACH calculator and tips, and Settings are ready. Demo data resets. Free AI limits are account-specific and not guaranteed. Open-Meteo free use is non-commercial. No Hindi UI. CPCB colour codes unverified.
 
 ## Documentation research report (25 November 2026)
 1. **Structure:** `purvai/` with 13 root files plus `design/PURVAI_DESIGN_SYSTEM.md`, exactly 14.

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     rate_limit_per_minute: int = 120
     cpcb_timeout_s: float = Field(default=20.0, ge=5.0, le=60.0)
+    purvai_fake_providers: bool = False
 
     data_gov_in_api_key: SecretStr | None = None
     ai_provider: str = "gemini"

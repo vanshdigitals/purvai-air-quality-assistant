@@ -26,11 +26,11 @@ erDiagram
 |---|---|---|
 | household | id TEXT PK uuid4, mode, created_at, updated_at, expires_at NULL | CHECK mode IN ('local','demo'); idx expires_at |
 | member | id PK, household_id FK, kind, count INT | CHECK kind IN ('child_u12','adult_65p','heart_lung','outdoor_worker','adult'); UNIQUE(household_id, kind) |
-| location | id PK, household_id FK, label TEXT(60), lat, lon REAL, is_primary | CHECK ranges; partial UNIQUE(household_id) WHERE is_primary |
-| settings | household_id PK/FK, theme, commute_mode, ai_enabled, save_chat default 0, reduce_motion | CHECK enums |
+| location | id PK, household_id FK, label TEXT(60), lat, lon REAL, city NULL, admin1 NULL, admin2 NULL, is_primary | CHECK ranges; partial UNIQUE(household_id) WHERE is_primary |
+| settings | household_id PK/FK, theme, commute_mode, ai_enabled, save_chat default 0, reduce_motion | CHECK enums (`commute_mode` includes `bus`, `car`, `auto`, `none` alongside granular transport modes) |
 | data_source | id TEXT PK ('cpcb','open_meteo'), name, licence, attribution_text, url | none |
 | aqi_observation | id PK, source_id FK, station_id NULL, lat_r, lon_r, observed_at, kind, source_label, pollutants JSON, aqi NULL, fetched_at | CHECK kind IN ('current','forecast'); CHECK source_label IN ('Measured','Modelled','Estimated'); UNIQUE(source_id, lat_r, lon_r, observed_at, kind); idx (lat_r, lon_r, observed_at) |
-| daily_plan | id PK, household_id FK, plan_date, verdict_level, aqi_observation_id FK NULL, generated_by, created_at | UNIQUE(household_id, plan_date) |
+| daily_plan | id PK, household_id FK, plan_date, verdict_level, aqi_observation_id FK NULL, generated_by, created_at | UNIQUE(household_id, plan_date); CHECK generated_by IN ('rules','gemini','groq','template') |
 | plan_item | id PK, plan_id FK, period, action_id, text TEXT(200), tag | CHECK tag IN ('rule','ai_wording') |
 | conversation | id PK, household_id FK, started_at | written only when save_chat=1 |
 | message | id PK, conversation_id FK, role, text TEXT(600), generated_by, created_at | CHECK role IN ('user','assistant') |
@@ -43,7 +43,7 @@ Child FKs use `ON DELETE CASCADE`. Timestamps are ISO 8601 UTC TEXT set by the s
 car_petrol 162, scooter 74, motorcycle 65, auto_cng 75, auto_diesel 104, bus_diesel 28, bus_diesel_ac 46, bus_cng 31, metro 24, walk 0, cycle 0. Source: ITF/OECD "Life-Cycle Assessment of Passenger Transport: An Indian Case Study" (2023). India GHG Program 2015 tailpipe factors (city bus 0.015161 kg CO2/pkm) are a cross-check only. Shown after A-02.
 
 ## Migrations
-Alembic with `render_as_batch=True`. `alembic upgrade head` on start in both modes. Seeds are idempotent upserts. Every schema change needs a migration and an export-format check.
+Alembic with `render_as_batch=True`. `alembic upgrade head` on start in both modes (`0001_initial_schema` base schema; `0002_location_admin` adds `city`, `admin1`, `admin2` on `location` and extends `ck_settings_commute_mode` and `ck_daily_plan_generated_by`). Seeds are idempotent upserts. Every schema change needs a migration and an export-format check.
 
 ## Backup, restore, export, import
 Backup: `sqlite3.Connection.backup()` to a timestamped file, safe while running; `VACUUM INTO` as alternative; keep last 7. Restore: `PRAGMA integrity_check` on a temp copy, check `alembic_version`, atomic swap, reset pool. Export: JSON `{"schema":1,...}`. Import: validate, dry-run, one transaction.

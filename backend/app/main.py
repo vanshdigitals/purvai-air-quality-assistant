@@ -3,6 +3,7 @@
 import json
 from collections.abc import AsyncIterator, Generator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 
 from alembic import command
@@ -17,6 +18,7 @@ from slowapi.util import get_remote_address
 from sqlmodel import Session
 
 from app.api.errors import register_exception_handlers
+from app.api.household import purge_expired_demo_households
 from app.api.middleware import RequestContextMiddleware, configure_json_logger
 from app.api.router import api_v1_router
 from app.aqi.pipeline import purge_old_observations, utc_now
@@ -43,6 +45,9 @@ def run_migrations(db_path: Path) -> None:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build and configure the FastAPI application instance."""
     resolved_settings = settings or get_settings()
+    if resolved_settings.purvai_fake_providers and resolved_settings.purvai_mode == "demo":
+        raise RuntimeError("PURVAI_FAKE_PROVIDERS cannot be enabled when PURVAI_MODE=demo")
+
     logger = configure_json_logger(resolved_settings.log_level)
     db_path = resolved_settings.resolved_database_path
     engine = create_sqlite_engine(db_path)
@@ -63,7 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 seed_data_sources(session)
                 purge_now = utc_now()
                 purge_old_observations(session, purge_now)
+                purge_expired_demo_households(session, purge_now)
                 app.state.last_purge_at = purge_now
+                app.state.last_demo_purge_at = purge_now
             db_ok = run_quick_check(engine)
             if not db_ok:
                 logger.error(json.dumps({"event": "db_quick_check_failed"}))
@@ -84,6 +91,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = limiter
     app.state.db_healthy = False
     app.state.last_purge_at = None
+    app.state.last_demo_purge_at = None
+    app.state.geocode_cache = {}
+    app.state.locations_limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["30/minute"],
+    )
 
     register_exception_handlers(app)
 
@@ -102,6 +115,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         mode=resolved_settings.purvai_mode,
         logger=logger,
     )
+
+    @app.middleware("http")
+    async def _hourly_demo_purge(request: Request, call_next: object) -> object:
+        now = utc_now()
+        last = getattr(app.state, "last_demo_purge_at", None)
+        if last is None or (now - last) >= timedelta(hours=1):
+            with Session(engine) as session:
+                purge_expired_demo_households(session, now)
+            app.state.last_demo_purge_at = now
+        return await call_next(request)  # type: ignore[operator]
 
     app.include_router(api_v1_router)
 

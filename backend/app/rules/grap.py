@@ -1,4 +1,4 @@
-"""GRAP manual configuration loader."""
+"""Update GRAP city resolution to match station city and household locality fields."""
 
 import json
 import logging
@@ -47,15 +47,20 @@ def load_grap_config(config_path: Path | None = None) -> GrapConfig | None:
         return None
 
 
-def resolve_grap(station_city: str | None, config_path: Path | None = None) -> GrapInfo | None:
-    """Return GRAP metadata only when the chosen CPCB station city is in config/grap.json."""
-    if not station_city or not station_city.strip():
+def resolve_grap(
+    station_city: str | None,
+    config_path: Path | None = None,
+    *,
+    location_cities: tuple[str | None, ...] = (),
+) -> GrapInfo | None:
+    """Return GRAP metadata when station city or household locality matches config/grap.json."""
+    candidates = [c.strip().casefold() for c in (station_city, *location_cities) if c and c.strip()]
+    if not candidates:
         return None
     cfg = load_grap_config(config_path)
     if cfg is None:
         return None
-    normalized_city = station_city.strip().casefold()
     allowed = {city.strip().casefold() for city in cfg.cities if city.strip()}
-    if normalized_city not in allowed:
+    if not any(candidate in allowed for candidate in candidates):
         return None
     return GrapInfo(stage=cfg.stage, order_date=cfg.order_date, source_url=cfg.source_url)

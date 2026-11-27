@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "id": 1261481,
+      "name": "Noida",
+      "latitude": 28.58,
+      "longitude": 77.33,
+      "country_code": "IN",
+      "admin1": "Uttar Pradesh",
+      "admin2": "Gautam Buddha Nagar"
+    },
+    {
+      "id": 7279746,
+      "name": "Sector 62, Noida",
+      "latitude": 28.6271,
+      "longitude": 77.3716,
+      "country_code": "IN",
+      "admin1": "Uttar Pradesh",
+      "admin2": "Noida"
+    },
+    {
+      "id": 1273294,
+      "name": "New Delhi",
+      "latitude": 28.6358,
+      "longitude": 77.2245,
+      "country_code": "IN",
+      "admin1": "Delhi",
+      "admin2": "New Delhi"
+    },
+    {
+      "id": 1278994,
+      "name": "Prayagraj",
+      "latitude": 25.4489,
+      "longitude": 81.8333,
+      "country_code": "IN",
+      "admin1": "Uttar Pradesh",
+      "admin2": "Prayagraj"
+    },
+    {
+      "id": 1275339,
+      "name": "Mumbai",
+      "latitude": 19.0728,
+      "longitude": 72.8826,
+      "country_code": "IN",
+      "admin1": "Maharashtra",
+      "admin2": "Mumbai"
+    }
+  ]
+}

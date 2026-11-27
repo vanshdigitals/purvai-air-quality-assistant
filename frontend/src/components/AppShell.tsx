@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Home, Info, Leaf, Menu, MessageSquare, Settings, Wind, X } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
-import { fetchHealth } from "../lib/api";
+import { ApiError, fetchHealth, fetchHousehold } from "../lib/api";
+import { applyReduceMotionToDocument, setThemePreference } from "../lib/theme";
 
 interface NavItem {
   to: string;
@@ -26,12 +27,33 @@ const SECONDARY_NAV: readonly NavItem[] = [
 export function AppShell() {
   const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const menuOpen = openMenuPath === location.pathname;
 
   const { data: health } = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
   });
+
+  const householdQuery = useQuery({
+    queryKey: ["household"],
+    queryFn: fetchHousehold,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (householdQuery.data) {
+      setThemePreference(householdQuery.data.settings.theme);
+      applyReduceMotionToDocument(householdQuery.data.settings.reduce_motion);
+    }
+  }, [householdQuery.data]);
+
+  useEffect(() => {
+    const err = householdQuery.error;
+    if (err instanceof ApiError && err.status === 404) {
+      void navigate("/welcome", { replace: true });
+    }
+  }, [householdQuery.error, navigate]);
 
   useEffect(() => {
     if (!menuOpen) return;

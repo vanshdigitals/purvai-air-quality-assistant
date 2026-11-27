@@ -1,0 +1,49 @@
+"""Daily Protection Plan endpoint."""
+
+from typing import Literal
+
+from fastapi import APIRouter, Request, status
+from pydantic import BaseModel, ConfigDict
+from sqlmodel import Session
+
+from app.api.errors import ApiStatusError
+from app.api.household import resolve_existing_household
+from app.providers.base import ProviderError
+from app.rules.plan import DailyPlanResponse, build_daily_plan
+
+router = APIRouter()
+
+
+class PlanRequest(BaseModel):
+    """Body schema for POST /api/v1/plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    day: Literal["today", "tomorrow"] = "today"
+
+
+@router.post("/plan", response_model=DailyPlanResponse)
+async def post_plan(request: Request, body: PlanRequest) -> DailyPlanResponse:
+    """Build and persist the 4-period Daily Protection Plan for the household."""
+    settings = request.app.state.settings
+    engine = request.app.state.engine
+    household_header = request.headers.get("X-Purvai-Household")
+
+    with Session(engine) as session:
+        household, member_kinds, primary_loc = resolve_existing_household(request, session)
+        try:
+            return await build_daily_plan(
+                session,
+                settings=settings,
+                household=household,
+                member_kinds=member_kinds,
+                location=primary_loc,
+                day=body.day,
+                household_header=household_header,
+            )
+        except ProviderError as exc:
+            raise ApiStatusError(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                code="PROVIDER_UNAVAILABLE",
+                message="Air quality forecast is temporarily unavailable.",
+            ) from exc
