@@ -434,3 +434,120 @@ def test_plan_wording_guard_checks_exact_period_actions() -> None:
         }
     )
     assert validate_ai_reply(bad_plan, ctx) == (False, "GUARD_ACTION_ID")
+
+
+def test_guard_permissive_negation_cases_a1() -> None:
+    ctx_vp = _sample_context(category="very_poor", aqi=312)
+    ctx_poor = _sample_context(category="poor", aqi=240)
+
+    def _chat(ans: str, level: Category) -> ChatReply:
+        return ChatReply(
+            schema_version="1.0",
+            verdict_level=level,
+            answer=ans,
+            data_cited=["aqi"],
+            recommendations=[],
+            needs_doctor_note=False,
+            out_of_scope=False,
+        )
+
+    assert validate_ai_reply(
+        _chat("It is not safe to go out today.", ctx_vp.verdict.level), ctx_vp
+    ) == (True, None)
+    assert validate_ai_reply(
+        _chat("It is safe to go out today.", ctx_vp.verdict.level), ctx_vp
+    ) == (False, "GUARD_PERMISSIVE")
+    assert validate_ai_reply(
+        _chat("Don't go out; it is not okay to go out right now.", ctx_vp.verdict.level),
+        ctx_vp,
+    ) == (True, None)
+    assert validate_ai_reply(
+        _chat("No need for a mask outdoors.", ctx_poor.verdict.level), ctx_poor
+    ) == (False, "GUARD_PERMISSIVE")
+    assert validate_ai_reply(
+        _chat("You still need a mask; there is no need to panic.", ctx_poor.verdict.level),
+        ctx_poor,
+    ) == (True, None)
+
+
+def test_guard_time_formats_ranges_and_durations_a2() -> None:
+    # Forecast hours include 17:30 IST (12:00Z) and 16:30 IST (11:00Z) and 18:30 IST (13:00Z)
+    air = _sample_air(category="very_poor", aqi=312)
+    forecast = AirForecastResponse(
+        scale="CPCB_NAQI",
+        source_label="Modelled",
+        indicative=True,
+        attribution=["Open-Meteo", "CAMS"],
+        generated_at="2026-11-27T03:35:00Z",
+        hours=[
+            ForecastHourOut(
+                time="2026-11-27T11:00:00Z",
+                aqi=310,
+                aqi_is_floor=False,
+                category="very_poor",
+                dominant_pollutant="pm25",
+            ),  # 16:30 IST
+            ForecastHourOut(
+                time="2026-11-27T12:00:00Z",
+                aqi=330,
+                aqi_is_floor=False,
+                category="very_poor",
+                dominant_pollutant="pm25",
+            ),  # 17:30 IST
+            ForecastHourOut(
+                time="2026-11-27T13:00:00Z",
+                aqi=340,
+                aqi_is_floor=False,
+                category="very_poor",
+                dominant_pollutant="pm25",
+            ),  # 18:30 IST
+        ],
+        lowest=ForecastLowestOut(time="2026-11-27T11:00:00Z", aqi=310, category="very_poor"),
+    )
+    ctx = build_ai_context(
+        air=air,
+        forecast=forecast,
+        member_kinds=["adult", "child_u12"],
+        city="Noida",
+        now_utc=datetime(2026, 11, 27, 3, 35, tzinfo=UTC),  # 09:05 IST, age_minutes=65, age_hours=1
+    )
+
+    def _check(
+        ans: str, user_msg: str | None = "Can my child play outside at 5 pm?"
+    ) -> tuple[bool, str | None]:
+        reply = ChatReply(
+            schema_version="1.0",
+            verdict_level=ctx.verdict.level,
+            answer=ans,
+            data_cited=["aqi", "forecast"],
+            recommendations=[],
+            needs_doctor_note=False,
+            out_of_scope=False,
+        )
+        return validate_ai_reply(reply, ctx, user_message=user_msg)
+
+    for variant in ("5 pm", "5pm", "5 PM", "5:00 pm", "17:00", "17.00"):
+        assert _check(f"Avoid outdoor play around {variant}.") == (True, None), variant
+
+    # Forecast time 17:30 written as 5:30 pm or 17:30
+    assert _check("AQI reaches 330 around 5:30 pm.", user_msg="How is the air?") == (True, None)
+    assert _check("AQI reaches 330 around 17:30.", user_msg="How is the air?") == (True, None)
+
+    # Time range 4 to 6 pm matches forecast hours 16:30 / 18:30 within ±30 min
+    assert _check("Air stays very poor from 4 to 6 pm.", user_msg="How is evening air?") == (
+        True,
+        None,
+    )
+    assert _check("Air stays very poor from 2 to 3 pm.", user_msg="How is evening air?") == (
+        False,
+        "GUARD_TIME",
+    )
+
+    # Durations: age durations grounded vs age_minutes/age_hours; general advice skipped
+    assert _check("Reading is 65 minutes old, limit play for 30 minutes.") == (True, None)
+    assert _check("Reading is 1 hour old, take breaks every 2 hours.") == (True, None)
+    assert _check("Reading is 5 hours old.") == (False, "GUARD_NUMBER")
+
+    # 24h ranges and cross-meridiem ranges (11 to 1 pm)
+    assert _check("Peak is 16:30 to 18:30.", user_msg="Afternoon?") == (True, None)
+    assert _check("Peak is 11 to 1 pm.", user_msg="At 11 am and 1 pm?") == (True, None)

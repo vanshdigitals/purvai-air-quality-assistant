@@ -45,6 +45,7 @@ async def get_air(
     settings = request.app.state.settings
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")
+    cpcb_breaker = getattr(request.app.state, "cpcb_breaker", None)
 
     with Session(engine) as session:
         now = utc_now()
@@ -60,6 +61,7 @@ async def get_air(
                 lat=lat,
                 lon=lon,
                 household_header=household_header,
+                cpcb_breaker=cpcb_breaker,
             )
         except ProviderError as exc:
             raise ApiStatusError(

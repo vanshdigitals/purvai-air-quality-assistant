@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 import respx
 from app.config import Settings
 from app.db.models import AqiObservation, Household, Member
@@ -317,3 +318,83 @@ def test_cpcb_timeout_falls_back_to_open_meteo_in_same_request(tmp_path: Path) -
         assert resp.status_code == 200
         assert om_route.call_count == 1
         assert resp.json()["source_label"] == "Modelled"
+
+
+@respx.mock
+def test_cpcb_circuit_breaker_open_skip_and_half_open_after_15_minutes(tmp_path: Path) -> None:
+    cpcb_route = respx.get(CPCB_RESOURCE_URL).mock(return_value=httpx.Response(503))
+    om_route = respx.get(OPEN_METEO_AIR_URL).mock(
+        return_value=httpx.Response(200, json=_load_fixture("open_meteo_noida.json"))
+    )
+
+    with freeze_time("2026-11-25T04:10:00Z") as frozen:
+        with _make_client(tmp_path, db_name="breaker.db") as client:
+            breaker = client.app.state.cpcb_breaker  # type: ignore[attr-defined]
+            assert breaker.state() == "closed"
+
+            # 1. Failure opens breaker and falls back to Open-Meteo
+            r1 = client.get("/api/v1/air?lat=28.62&lon=77.37")
+            assert r1.status_code == 200
+            assert r1.json()["source_label"] == "Modelled"
+            assert cpcb_route.call_count == 1
+            assert om_route.call_count == 1
+            assert breaker.state() == "open"
+
+            # 2. Cold location at +5 min skips CPCB completely while breaker is open
+            frozen.tick(delta=300)
+            r2 = client.get("/api/v1/air?lat=25.44&lon=81.85")
+            assert r2.status_code == 200
+            assert r2.json()["source_label"] == "Modelled"
+            assert cpcb_route.call_count == 1
+            assert om_route.call_count == 2
+            assert breaker.state() == "open"
+
+            # 3. After 15 min (+601s -> 901s elapsed), breaker is half_open and probes CPCB
+            frozen.tick(delta=601)
+            assert breaker.state() == "half_open"
+            cpcb_route.mock(
+                return_value=httpx.Response(200, json=_load_fixture("cpcb_noida_synthetic.json"))
+            )
+            r3 = client.get("/api/v1/air?lat=28.62&lon=77.37")
+            assert r3.status_code == 200
+            assert r3.json()["source_label"] == "Measured"
+            assert cpcb_route.call_count == 2
+            assert breaker.state() == "closed"
+
+
+@respx.mock
+@pytest.mark.anyio
+async def test_refresh_cpcb_in_background_updates_cache_and_breaker(tmp_path: Path) -> None:
+    from app.aqi.pipeline import CpcbCircuitBreaker, refresh_cpcb_in_background
+
+    breaker = CpcbCircuitBreaker()
+    settings = Settings(
+        purvai_mode="local",
+        database_path=str(tmp_path / "bg.db"),
+        data_gov_in_api_key="test-cpcb-key",  # type: ignore[arg-type]
+    )
+    app = create_app(settings)
+    with TestClient(app):
+        with Session(app.state.engine) as session:
+            respx.get(CPCB_RESOURCE_URL).mock(return_value=httpx.Response(503))
+            assert (
+                await refresh_cpcb_in_background(session, settings=settings, cpcb_breaker=breaker)
+                == 0
+            )
+            assert breaker.state() == "open"
+            # Skipped while breaker is open
+            assert (
+                await refresh_cpcb_in_background(session, settings=settings, cpcb_breaker=breaker)
+                == 0
+            )
+
+            # Reset breaker -> succeeds and stores rows
+            breaker.record_success()
+            respx.get(CPCB_RESOURCE_URL).mock(
+                return_value=httpx.Response(200, json=_load_fixture("cpcb_noida_synthetic.json"))
+            )
+            count = await refresh_cpcb_in_background(
+                session, settings=settings, cpcb_breaker=breaker
+            )
+            assert count >= 1
+            assert breaker.state() == "closed"

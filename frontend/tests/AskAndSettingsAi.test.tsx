@@ -323,4 +323,65 @@ describe("AskPage and Settings AI", () => {
     await user.click(saveChatSwitch);
     expect(putBodies[0]).toContain('"save_chat":true');
   });
+
+  it("shows full answer and doctor note without out-of-scope redirect for symptom queries", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/household")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(makeHousehold(false, true)), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      }
+      if (url.endsWith("/chat")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              schema_version: "1.0",
+              verdict_level: "severe",
+              answer: "Keep your son indoors and run the air purifier today.",
+              data_cited: ["aqi", "category", "source"],
+              recommendations: [
+                {
+                  action_id: "stay_indoors",
+                  title: "Stay indoors today.",
+                  why: "PM2.5 is very high.",
+                  tag: "ai_wording",
+                },
+              ],
+              needs_doctor_note: true,
+              out_of_scope: false,
+              generated_by: "gemini",
+              note: null,
+              aqi: 312,
+              category: "very_poor",
+              source_label: "Modelled",
+              observed_at: "2026-11-27T11:00:00Z",
+              age_minutes: 30,
+              stale: false,
+              grap_stage: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 404 }));
+    });
+
+    renderAsk();
+    const textarea = await screen.findByLabelText("Ask a question");
+    await user.type(textarea, "my son has a cough");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByText("Keep your son indoors and run the air purifier today.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Consult a doctor/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("I can help with air quality and keeping your household safer.")
+    ).not.toBeInTheDocument();
+  });
 });

@@ -33,8 +33,38 @@ CACHE_TTL = timedelta(minutes=30)
 FRESHNESS_LIMIT = timedelta(hours=2)
 RETENTION_LIMIT = timedelta(days=8)
 CPCB_MAX_DISTANCE_KM = 10.0
+CPCB_BREAKER_COOLDOWN = timedelta(minutes=15)
 
 _missing_cpcb_key_warned = False
+
+
+class CpcbCircuitBreaker:
+    """In-memory circuit breaker skipping failing CPCB refreshes for 15 minutes."""
+
+    def __init__(self, cooldown: timedelta = CPCB_BREAKER_COOLDOWN) -> None:
+        self.cooldown = cooldown
+        self._opened_at: datetime | None = None
+
+    def state(self, now: datetime | None = None) -> Literal["closed", "open", "half_open"]:
+        """Return current breaker state: closed, open (<15 min), or half_open (>=15 min)."""
+        if self._opened_at is None:
+            return "closed"
+        current = now or utc_now()
+        if (current - self._opened_at) < self.cooldown:
+            return "open"
+        return "half_open"
+
+    def should_skip(self, now: datetime | None = None) -> bool:
+        """Return True while breaker is open and CPCB requests must be skipped."""
+        return self.state(now) == "open"
+
+    def record_success(self) -> None:
+        """Close the circuit breaker after a successful CPCB refresh."""
+        self._opened_at = None
+
+    def record_failure(self, now: datetime | None = None) -> None:
+        """Open (or re-open) the circuit breaker for cooldown duration."""
+        self._opened_at = now or utc_now()
 
 
 def utc_now() -> datetime:
@@ -406,6 +436,7 @@ async def _try_cpcb(
     req_lon: float,
     now: datetime,
     http_client: httpx.AsyncClient | None,
+    cpcb_breaker: CpcbCircuitBreaker | None = None,
 ) -> _CandidateObservation | None:
     global _missing_cpcb_key_warned
 
@@ -436,6 +467,10 @@ async def _try_cpcb(
                 served_from_cache=False,
             )
 
+    if cpcb_breaker is not None and cpcb_breaker.should_skip(now):
+        logger.debug(json.dumps({"event": "cpcb_breaker_skip"}))
+        return None
+
     if settings.data_gov_in_api_key is None and not settings.purvai_fake_providers:
         if not _missing_cpcb_key_warned:
             logger.warning(json.dumps({"event": "cpcb_api_key_missing"}))
@@ -456,8 +491,13 @@ async def _try_cpcb(
             now=now,
         )
     except ProviderError as exc:
+        if cpcb_breaker is not None:
+            cpcb_breaker.record_failure(now)
         logger.warning(json.dumps({"event": "cpcb_fetch_failed", "reason": str(exc)}))
         return None
+
+    if cpcb_breaker is not None:
+        cpcb_breaker.record_success()
 
     fetched_iso = to_utc_iso(now)
     for reading in readings:
@@ -493,6 +533,108 @@ async def _try_cpcb(
         req_lon=req_lon,
         now=now,
     )
+
+
+def _find_fresh_open_meteo_cached(
+    session: Session,
+    *,
+    req_lat: float,
+    req_lon: float,
+    now: datetime,
+) -> _CandidateObservation | None:
+    lat_r = round(req_lat, 2)
+    lon_r = round(req_lon, 2)
+    cached = session.exec(
+        select(AqiObservation)
+        .where(
+            AqiObservation.source_id == "open_meteo",
+            AqiObservation.kind == "current",
+            AqiObservation.lat_r == lat_r,
+            AqiObservation.lon_r == lon_r,
+        )
+        .order_by(AqiObservation.fetched_at.desc())  # type: ignore[attr-defined]
+    ).first()
+    if cached is not None and (now - parse_utc_iso(cached.fetched_at)) <= CACHE_TTL:
+        values, _, _, _, _ = _extract_pollutants_and_meta(cached.pollutants)
+        aqi_res = compute_overall_aqi(values)
+        if aqi_res is not None:
+            label: Literal["Modelled", "Estimated"] = (
+                "Modelled" if aqi_res.meets_three_pollutant_rule else "Estimated"
+            )
+            return _CandidateObservation(
+                source_id="open_meteo",
+                source_label=label,
+                station_name=None,
+                city=None,
+                distance_km=None,
+                observed_at=parse_utc_iso(cached.observed_at),
+                aqi_result=aqi_res,
+                served_from_cache=False,
+            )
+    return None
+
+
+async def refresh_cpcb_in_background(
+    session: Session,
+    *,
+    settings: Settings,
+    cpcb_breaker: CpcbCircuitBreaker | None = None,
+    http_client: httpx.AsyncClient | None = None,
+    now: datetime | None = None,
+) -> int:
+    """Refresh CPCB station cache outside user request paths (never blocks callers)."""
+    current = now or utc_now()
+    if cpcb_breaker is not None and cpcb_breaker.should_skip(current):
+        return 0
+    if settings.data_gov_in_api_key is None and not settings.purvai_fake_providers:
+        return 0
+    api_key = (
+        settings.data_gov_in_api_key.get_secret_value()
+        if settings.data_gov_in_api_key is not None
+        else ""
+    )
+    try:
+        readings = await fetch_cpcb_stations(
+            api_key,
+            client=http_client,
+            timeout_s=settings.cpcb_timeout_s,
+            fake_providers=settings.purvai_fake_providers,
+            now=current,
+        )
+    except ProviderError as exc:
+        if cpcb_breaker is not None:
+            cpcb_breaker.record_failure(current)
+        logger.warning(json.dumps({"event": "cpcb_background_refresh_failed", "reason": str(exc)}))
+        return 0
+    if cpcb_breaker is not None:
+        cpcb_breaker.record_success()
+    fetched_iso = to_utc_iso(current)
+    for reading in readings:
+        aqi_res = compute_overall_aqi(reading.pollutants)
+        label: Literal["Measured", "Estimated"] = (
+            "Measured" if aqi_res and aqi_res.meets_three_pollutant_rule else "Estimated"
+        )
+        _upsert_observation(
+            session,
+            source_id="cpcb",
+            station_id=reading.station_id,
+            lat_r=round(reading.lat, 2),
+            lon_r=round(reading.lon, 2),
+            observed_at_iso=to_utc_iso(reading.observed_at),
+            kind="current",
+            source_label=label,
+            pollutants_payload={
+                "values": dict(reading.pollutants),
+                "station_name": reading.station_name,
+                "city": reading.city,
+                "lat": reading.lat,
+                "lon": reading.lon,
+            },
+            aqi=aqi_res.aqi if aqi_res else None,
+            fetched_at_iso=fetched_iso,
+        )
+    session.commit()
+    return len(readings)
 
 
 async def _try_open_meteo(
@@ -666,18 +808,55 @@ async def get_air_quality(
     household_header: str | None = None,
     http_client: httpx.AsyncClient | None = None,
     grap_path: Path | None = None,
+    cpcb_breaker: CpcbCircuitBreaker | None = None,
+    prefer_cache: bool = False,
 ) -> AirQualityResponse:
-    """Execute the full AQI pipeline: CPCB -> Open-Meteo -> SQLite cache -> verdict."""
+    """Execute AQI pipeline: cache (when preferred) / CPCB -> Open-Meteo -> SQLite -> verdict."""
     now = utc_now()
+    candidate: _CandidateObservation | None = None
 
-    candidate = await _try_cpcb(
-        session,
-        settings=settings,
-        req_lat=lat,
-        req_lon=lon,
-        now=now,
-        http_client=http_client,
-    )
+    if prefer_cache:
+        latest_cpcb = session.exec(
+            select(func.max(AqiObservation.fetched_at)).where(
+                AqiObservation.source_id == "cpcb",
+                AqiObservation.kind == "current",
+            )
+        ).one()
+        if isinstance(latest_cpcb, str) and (now - parse_utc_iso(latest_cpcb)) <= CACHE_TTL:
+            cpcb_rows = list(
+                session.exec(
+                    select(AqiObservation).where(
+                        AqiObservation.source_id == "cpcb",
+                        AqiObservation.kind == "current",
+                    )
+                ).all()
+            )
+            candidate = _select_best_cpcb_from_rows(
+                cpcb_rows,
+                req_lat=lat,
+                req_lon=lon,
+                now=now,
+                require_fresh=True,
+                served_from_cache=False,
+            )
+        if candidate is None:
+            candidate = _find_fresh_open_meteo_cached(
+                session,
+                req_lat=lat,
+                req_lon=lon,
+                now=now,
+            )
+
+    if candidate is None:
+        candidate = await _try_cpcb(
+            session,
+            settings=settings,
+            req_lat=lat,
+            req_lon=lon,
+            now=now,
+            http_client=http_client,
+            cpcb_breaker=cpcb_breaker,
+        )
     if candidate is None:
         candidate = await _try_open_meteo(
             session,

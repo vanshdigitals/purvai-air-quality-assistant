@@ -34,8 +34,11 @@ BASE_SYSTEM_RULES = (
 
 CHAT_SYSTEM_INSTRUCTION = (
     f"{BASE_SYSTEM_RULES}\n"
-    "12. If the user asks about anything outside air quality, outdoor safety, "
-    "or indoor home air protection, set out_of_scope=true and redirect calmly.\n"
+    "12. Questions about cough, breathing discomfort, wheezing, chest tightness, or air-related "
+    "symptoms ARE in scope: keep out_of_scope=false, set needs_doctor_note=true, and share "
+    "general protective steps from context without diagnosing. If the user asks about anything "
+    "unrelated to air quality, outdoor safety, indoor protection, or breathing symptoms, set "
+    "out_of_scope=true and redirect calmly.\n"
     '13. Keep tag="ai_wording" on reworded recommendations and obey length limits.'
 )
 

@@ -62,6 +62,7 @@ async def get_home_air_tips_endpoint(
     settings = request.app.state.settings
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")
+    cpcb_breaker = getattr(request.app.state, "cpcb_breaker", None)
 
     with Session(engine) as session:
         try:
@@ -71,6 +72,8 @@ async def get_home_air_tips_endpoint(
                 lat=lat,
                 lon=lon,
                 household_header=household_header,
+                cpcb_breaker=cpcb_breaker,
+                prefer_cache=True,
             )
             level: Category = air.category  # type: ignore[assignment]
         except ProviderError as exc:

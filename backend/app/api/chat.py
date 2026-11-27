@@ -1,5 +1,8 @@
 """Ask Purvai chat and conversation history endpoints."""
 
+import json
+import logging
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Request, Response, status
@@ -24,6 +27,7 @@ from app.providers.base import ProviderError
 from app.rules.catalogue import Category
 
 router = APIRouter()
+logger = logging.getLogger("purvai")
 
 
 class ChatRequest(BaseModel):
@@ -95,10 +99,13 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
     settings = request.app.state.settings
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")
+    cpcb_breaker = getattr(request.app.state, "cpcb_breaker", None)
+    total_start = time.perf_counter()
 
     with Session(engine) as session:
         household, member_kinds, primary_loc = resolve_existing_household(request, session)
 
+        air_start = time.perf_counter()
         try:
             air = await get_air_quality(
                 session,
@@ -106,6 +113,8 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
                 lat=primary_loc.lat,
                 lon=primary_loc.lon,
                 household_header=household_header,
+                cpcb_breaker=cpcb_breaker,
+                prefer_cache=True,
             )
         except ProviderError as exc:
             raise ApiStatusError(
@@ -125,8 +134,10 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
             )
         except ProviderError:
             forecast = None
+        air_fetch_ms = int((time.perf_counter() - air_start) * 1000)
 
         now = utc_now()
+        ctx_start = time.perf_counter()
         context = build_ai_context(
             air=air,
             forecast=forecast,
@@ -134,6 +145,7 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
             city=primary_loc.city,
             now_utc=now,
         )
+        context_build_ms = int((time.perf_counter() - ctx_start) * 1000)
 
         settings_row = session.get(SettingsRecord, household.id)
         ai_enabled = bool(settings_row.ai_enabled) if settings_row is not None else True
@@ -147,6 +159,21 @@ async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
         )
         assert isinstance(gateway_res.data, ChatReply)
         reply = gateway_res.data
+
+        total_ms = int((time.perf_counter() - total_start) * 1000)
+        logger.debug(
+            json.dumps(
+                {
+                    "event": "chat_stage_timings",
+                    "air_fetch_ms": air_fetch_ms,
+                    "context_build_ms": context_build_ms,
+                    "primary_provider_ms": gateway_res.primary_provider_ms,
+                    "fallback_provider_ms": gateway_res.fallback_provider_ms,
+                    "guard_ms": gateway_res.guard_ms,
+                    "total_ms": total_ms,
+                }
+            )
+        )
 
         if save_chat:
             convo = session.exec(

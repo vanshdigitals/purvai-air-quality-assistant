@@ -30,6 +30,7 @@ async def post_plan(request: Request, body: PlanRequest) -> DailyPlanResponse:
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")
     plan_ai_cache = getattr(request.app.state, "plan_ai_cache", None)
+    cpcb_breaker = getattr(request.app.state, "cpcb_breaker", None)
 
     with Session(engine) as session:
         household, member_kinds, primary_loc = resolve_existing_household(request, session)
@@ -44,6 +45,7 @@ async def post_plan(request: Request, body: PlanRequest) -> DailyPlanResponse:
                 rebuild=body.rebuild,
                 household_header=household_header,
                 plan_ai_cache=plan_ai_cache,
+                cpcb_breaker=cpcb_breaker,
             )
         except ProviderError as exc:
             raise ApiStatusError(

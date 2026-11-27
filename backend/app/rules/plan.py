@@ -19,6 +19,7 @@ from app.aqi.calculator import category_for_aqi
 from app.aqi.pipeline import (
     AirForecastResponse,
     AirQualityResponse,
+    CpcbCircuitBreaker,
     ForecastHourOut,
     ForecastLowestOut,
     get_air_quality,
@@ -128,6 +129,7 @@ async def build_daily_plan(
     rebuild: bool = False,
     household_header: str | None = None,
     plan_ai_cache: dict[tuple[str, str, str], dict[str, Any]] | None = None,
+    cpcb_breaker: CpcbCircuitBreaker | None = None,
 ) -> DailyPlanResponse:
     """Compute, optionally AI-word under guard, and persist the 4-period Daily Protection Plan."""
     now_utc = utc_now()
@@ -155,6 +157,8 @@ async def build_daily_plan(
             lat=location.lat,
             lon=location.lon,
             household_header=household_header,
+            cpcb_breaker=cpcb_breaker,
+            prefer_cache=True,
         )
         current_aqi = air_obj.aqi
         source_label = air_obj.source_label
@@ -301,6 +305,8 @@ async def build_daily_plan(
                 lat=location.lat,
                 lon=location.lon,
                 household_header=household_header,
+                cpcb_breaker=cpcb_breaker,
+                prefer_cache=True,
             )
         upcoming = forecast_hours[:12]
         lowest_pt = min(upcoming, key=lambda h: h.aqi)

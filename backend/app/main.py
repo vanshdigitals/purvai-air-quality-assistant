@@ -21,7 +21,7 @@ from app.api.errors import register_exception_handlers
 from app.api.household import purge_expired_demo_households
 from app.api.middleware import RequestContextMiddleware, configure_json_logger
 from app.api.router import api_v1_router
-from app.aqi.pipeline import purge_old_observations, utc_now
+from app.aqi.pipeline import CpcbCircuitBreaker, purge_old_observations, utc_now
 from app.config import REPO_ROOT, Settings, get_settings
 from app.db.engine import (
     apply_local_db_permissions,
@@ -94,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.last_demo_purge_at = None
     app.state.geocode_cache = {}
     app.state.plan_ai_cache = {}
+    app.state.cpcb_breaker = CpcbCircuitBreaker()
     app.state.locations_limiter = Limiter(
         key_func=get_remote_address,
         default_limits=["30/minute"],

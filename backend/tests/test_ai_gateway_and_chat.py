@@ -279,6 +279,22 @@ async def test_symptom_keywords_force_doctor_note_even_if_ai_false_and_on_templa
     )
     assert isinstance(res_tpl.data, ChatReply)
     assert res_tpl.data.needs_doctor_note is True
+    assert res_tpl.data.out_of_scope is False
+
+    # Even if AI flags out_of_scope=True on a symptom question, server clears out_of_scope (A3)
+    bad_scope_reply = _valid_chat_reply(ctx, needs_doctor_note=False).model_copy(
+        update={"out_of_scope": True}
+    )
+    res_scope = await generate_chat_reply(
+        settings=settings,
+        context=ctx,
+        user_message=f"My son has {keyword}.",
+        ai_enabled=True,
+        providers_override=[_StubProvider("gemini", reply=bad_scope_reply)],
+    )
+    assert isinstance(res_scope.data, ChatReply)
+    assert res_scope.data.needs_doctor_note is True
+    assert res_scope.data.out_of_scope is False
 
 
 @respx.mock
@@ -671,3 +687,68 @@ def test_plan_and_indoor_templates_and_wrong_plan_fallback(tmp_path: Path) -> No
         body = res.json()
         assert body["generated_by"] == "template"
         assert body["note"] == AI_UNAVAILABLE_NOTE
+
+
+@respx.mock
+@freeze_time("2026-11-25T04:10:00Z")
+def test_chat_reuses_fresh_air_cache_and_logs_numeric_stage_timings(tmp_path: Path) -> None:
+    # CPCB fails on initial /air -> falls back to Open-Meteo and opens breaker
+    cpcb_route = respx.get(CPCB_RESOURCE_URL).mock(return_value=httpx.Response(503))
+    om_route = respx.get(OPEN_METEO_AIR_URL).mock(
+        side_effect=[
+            httpx.Response(200, json=_load_fixture("open_meteo_noida.json")),
+            httpx.Response(200, json=_load_fixture("open_meteo_forecast_noida.json")),
+        ]
+    )
+
+    recorded: list[str] = []
+
+    class _MemHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            recorded.append(record.getMessage())
+
+    mem_handler = _MemHandler(level=logging.DEBUG)
+    purvai_logger = logging.getLogger("purvai")
+    purvai_logger.addHandler(mem_handler)
+
+    try:
+        app = create_app(
+            Settings(
+                purvai_mode="local",
+                database_path=str(tmp_path / "chat_cache.db"),
+                data_gov_in_api_key="key",  # type: ignore[arg-type]
+                log_level="DEBUG",
+                rate_limit_per_minute=1000,
+            )
+        )
+        with TestClient(app) as client:
+            _seed_household(client, ai_enabled=False, save_chat=False)
+            assert client.get("/api/v1/air?lat=28.6271&lon=77.3716").status_code == 200
+            assert cpcb_route.call_count == 1
+            recorded.clear()
+
+            # Calling /chat must reuse cached /air (and forecast after 1st call) without CPCB
+            resp1 = client.post("/api/v1/chat", json={"message": "SECRET_QUESTION_NO_LOG"})
+            assert resp1.status_code == 200
+            assert cpcb_route.call_count == 1
+            assert om_route.call_count == 2  # initial current + initial forecast only
+
+            resp2 = client.post("/api/v1/chat", json={"message": "SECOND_SECRET_QUESTION"})
+            assert resp2.status_code == 200
+            assert cpcb_route.call_count == 1
+            assert om_route.call_count == 2  # both air & forecast served from 30-min cache
+
+            timing_events = [json.loads(msg) for msg in recorded if "chat_stage_timings" in msg]
+            assert len(timing_events) == 2
+            assert set(timing_events[0].keys()) == {
+                "event",
+                "air_fetch_ms",
+                "context_build_ms",
+                "primary_provider_ms",
+                "fallback_provider_ms",
+                "guard_ms",
+                "total_ms",
+            }
+            assert "SECRET_QUESTION_NO_LOG" not in "\n".join(recorded)
+    finally:
+        purvai_logger.removeHandler(mem_handler)
