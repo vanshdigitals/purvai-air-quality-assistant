@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     cors_dev_origin: str = "http://localhost:5173"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     rate_limit_per_minute: int = 120
+    trust_proxy_headers: bool = False
     cpcb_timeout_s: float = Field(default=20.0, ge=5.0, le=60.0)
     purvai_fake_providers: bool = False
     co2_estimates_enabled: bool = True

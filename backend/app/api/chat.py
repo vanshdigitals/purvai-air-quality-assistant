@@ -15,6 +15,7 @@ from app.ai.gateway import generate_chat_reply
 from app.ai.schemas.v1.models import ChatReply, DataCitedLiteral, Recommendation
 from app.api.errors import ApiStatusError
 from app.api.household import resolve_existing_household
+from app.api.rate_limit import limiter
 from app.aqi.pipeline import (
     AirForecastResponse,
     get_air_forecast,
@@ -91,12 +92,9 @@ class ConversationsResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("20/minute")
 async def post_chat(request: Request, body: ChatRequest) -> ChatResponse:
     """Answer an air-safety question using server context, guardrails, and fallback chain."""
-    ai_limiter = getattr(request.app.state, "ai_limiter", None)
-    if ai_limiter is not None:
-        ai_limiter._check_request_limit(request, post_chat, False)
-
     settings = request.app.state.settings
     engine = request.app.state.engine
     household_header = request.headers.get("X-Purvai-Household")

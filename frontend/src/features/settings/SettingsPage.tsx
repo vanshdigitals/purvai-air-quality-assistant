@@ -235,9 +235,9 @@ export default function SettingsPage() {
             </button>
           </div>
           <p className="text-xs text-muted">
-            Questions are sent to Google Gemini, or Groq as a backup, with air data and household
-            flags only. No name, address or exact location is sent. Free-tier requests may be
-            reviewed by people.
+            Questions are sent to Google Gemini, or Groq as a backup, with air data, your city name
+            and household flags only. No name, address or exact location is sent. Free-tier requests
+            may be reviewed by people.
           </p>
         </div>
 

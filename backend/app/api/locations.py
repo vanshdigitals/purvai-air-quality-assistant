@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request, status
 from sqlmodel import Session
 
 from app.api.errors import ApiStatusError
+from app.api.rate_limit import limiter
 from app.aqi.pipeline import get_nearest_cached_cpcb_km, utc_now
 from app.providers.base import ProviderError
 from app.providers.geocoding import GeocodingResult, search_locations
@@ -12,15 +13,12 @@ router = APIRouter()
 
 
 @router.get("/locations/search", response_model=list[GeocodingResult])
+@limiter.limit("30/minute")
 async def search_indian_locations(
     request: Request,
     q: str = Query(..., min_length=2, max_length=60),
 ) -> list[GeocodingResult]:
     """Search Indian locations via Open-Meteo Geocoding with 24 h cache and 30/min rate limit."""
-    locations_limiter = getattr(request.app.state, "locations_limiter", None)
-    if locations_limiter is not None:
-        locations_limiter._check_request_limit(request, search_indian_locations, False)
-
     settings = request.app.state.settings
     engine = request.app.state.engine
     cache = request.app.state.geocode_cache

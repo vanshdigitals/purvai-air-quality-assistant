@@ -33,7 +33,9 @@ jobs:
       - name: Mypy strict check
         run: mypy app
       - name: Pytest with coverage
-        run: pytest --cov=app --cov-fail-under=70
+        run: |
+          pytest --cov=app --cov-fail-under=75
+          coverage report --precision=2 --include="app/aqi/*,app/rules/*,app/ai/*,app/impact/*" --fail-under=80
       - name: Dependency audit
         run: pip-audit -r requirements.txt
 
@@ -70,6 +72,9 @@ jobs:
       - name: Build production bundle
         working-directory: frontend
         run: npm run build
+      - name: Check /today first-visit JS bundle size (PERF-03)
+        working-directory: frontend
+        run: node scripts/check-bundle.mjs
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium

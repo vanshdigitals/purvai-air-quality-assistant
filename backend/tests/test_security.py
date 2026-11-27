@@ -13,6 +13,8 @@ def test_security_headers_and_request_id(local_client: TestClient, demo_client: 
     assert local_resp.status_code == 200
     assert local_resp.headers["X-Request-ID"] == "req-abc-123"
     assert "default-src 'self'" in local_resp.headers["Content-Security-Policy"]
+    assert "frame-ancestors 'none'" in local_resp.headers["Content-Security-Policy"]
+    assert local_resp.headers["X-Frame-Options"] == "DENY"
     assert local_resp.headers["X-Content-Type-Options"] == "nosniff"
     assert local_resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert local_resp.headers["Permissions-Policy"] == "geolocation=(self)"
@@ -122,3 +124,71 @@ def test_rate_limit_429(tmp_path: Path) -> None:
         assert limited.status_code == 429
         assert limited.headers.get("Retry-After") == "60"
         assert limited.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+
+
+def test_chunked_body_without_content_length_returns_413(tmp_path: Path) -> None:
+    """Chunked/streaming request without Content-Length exceeding 64 KB returns 413."""
+    settings = Settings(
+        purvai_mode="local",
+        database_path=str(tmp_path / "chunked.db"),
+        rate_limit_per_minute=1000,
+    )
+    app = create_app(settings)
+
+    def _chunk_gen() -> object:
+        for _ in range(70):
+            yield b"x" * 1024
+
+    with TestClient(app) as client:
+        resp = client.post("/api/v1/health", content=_chunk_gen())  # type: ignore[arg-type]
+        assert resp.status_code == 413
+        assert resp.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_trust_proxy_headers_controls_rate_limit_key(tmp_path: Path) -> None:
+    """TRUST_PROXY_HEADERS=true keys rate limits on X-Forwarded-For first IP; false ignores it."""
+    # false: both IPs share testclient address and hit limit on 3rd request
+    app_false = create_app(
+        Settings(
+            purvai_mode="local",
+            database_path=str(tmp_path / "proxy_false.db"),
+            rate_limit_per_minute=2,
+            trust_proxy_headers=False,
+        )
+    )
+    with TestClient(app_false) as c_false:
+        assert (
+            c_false.get("/api/v1/health", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+        )
+        assert (
+            c_false.get("/api/v1/health", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+        )
+        assert (
+            c_false.get("/api/v1/health", headers={"X-Forwarded-For": "3.3.3.3"}).status_code == 429
+        )
+
+    # true: distinct X-Forwarded-For IPs get independent buckets
+    app_true = create_app(
+        Settings(
+            purvai_mode="local",
+            database_path=str(tmp_path / "proxy_true.db"),
+            rate_limit_per_minute=2,
+            trust_proxy_headers=True,
+        )
+    )
+    with TestClient(app_true) as c_true:
+        assert (
+            c_true.get("/api/v1/health", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+        )
+        assert (
+            c_true.get("/api/v1/health", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+        )
+        assert (
+            c_true.get("/api/v1/health", headers={"X-Forwarded-For": "3.3.3.3"}).status_code == 200
+        )
+        assert (
+            c_true.get("/api/v1/health", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+        )
+        assert (
+            c_true.get("/api/v1/health", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 429
+        )

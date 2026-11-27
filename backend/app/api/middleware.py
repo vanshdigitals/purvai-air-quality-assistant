@@ -10,13 +10,18 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp
 
 from app.api.errors import error_payload
 
 MAX_BODY_BYTES = 64 * 1024  # 64 KB per docs/API.md and docs/SECURITY.md
+MAX_IMPORT_BODY_BYTES = 5 * 1024 * 1024  # 5 MB for POST /api/v1/data/import
 
-CSP_HEADER = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'"
+CSP_HEADER = (
+    "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
+    "style-src 'self'; frame-ancestors 'none'"
+)
 
 
 def configure_json_logger(level_name: str) -> logging.Logger:
@@ -33,7 +38,7 @@ def configure_json_logger(level_name: str) -> logging.Logger:
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Attach request ID, enforce 64 KB body limit, log JSON access, and add security headers."""
+    """Attach request ID, enforce body limits, log JSON access, and add security headers."""
 
     def __init__(self, app: ASGIApp, *, mode: str, logger: logging.Logger) -> None:
         super().__init__(app)
@@ -54,44 +59,61 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         start = time.perf_counter()
 
-        response: Response
+        limit = (
+            MAX_IMPORT_BODY_BYTES if request.url.path == "/api/v1/data/import" else MAX_BODY_BYTES
+        )
+
         content_length = request.headers.get("content-length")
         if content_length is not None:
             try:
-                if int(content_length) > MAX_BODY_BYTES:
-                    response = self._too_large_response(request_id)
-                    self._apply_headers(response, request_id)
-                    self._log_access(request, response.status_code, start, request_id)
-                    return response
+                if int(content_length) > limit:
+                    return self._reject_too_large(request, limit, start, request_id)
             except ValueError:
                 pass
 
-        body = await request.body()
-        if len(body) > MAX_BODY_BYTES:
-            response = self._too_large_response(request_id)
-            self._apply_headers(response, request_id)
-            self._log_access(request, response.status_code, start, request_id)
-            return response
+        # Stream chunks to enforce limit even on chunked requests without Content-Length
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            async for chunk in request.stream():
+                total += len(chunk)
+                if total > limit:
+                    return self._reject_too_large(request, limit, start, request_id)
+                chunks.append(chunk)
+        except ClientDisconnect:
+            return Response(status_code=499)
+
+        request._body = b"".join(chunks)
 
         response = await call_next(request)
         self._apply_headers(response, request_id)
         self._log_access(request, response.status_code, start, request_id)
         return response
 
-    @staticmethod
-    def _too_large_response(request_id: str) -> JSONResponse:
-        return JSONResponse(
+    def _reject_too_large(
+        self,
+        request: Request,
+        limit: int,
+        start: float,
+        request_id: str,
+    ) -> JSONResponse:
+        label = "5 MB" if limit == MAX_IMPORT_BODY_BYTES else "64 KB"
+        response = JSONResponse(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             content=error_payload(
                 "PAYLOAD_TOO_LARGE",
-                "Request body exceeds 64 KB limit.",
+                f"Request body exceeds {label} limit.",
                 request_id,
             ),
         )
+        self._apply_headers(response, request_id)
+        self._log_access(request, response.status_code, start, request_id)
+        return response
 
     def _apply_headers(self, response: Response, request_id: str) -> None:
         response.headers["X-Request-ID"] = request_id
         response.headers["Content-Security-Policy"] = CSP_HEADER
+        response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(self)"

@@ -12,14 +12,14 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
+from slowapi.wrappers import LimitGroup
 from sqlmodel import Session
 
 from app.api.errors import register_exception_handlers
 from app.api.household import purge_expired_demo_households
 from app.api.middleware import RequestContextMiddleware, configure_json_logger
+from app.api.rate_limit import get_rate_limit_key, limiter
 from app.api.router import api_v1_router
 from app.aqi.pipeline import CpcbCircuitBreaker, purge_old_observations, utc_now
 from app.config import REPO_ROOT, Settings, get_settings
@@ -52,10 +52,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db_path = resolved_settings.resolved_database_path
     engine = create_sqlite_engine(db_path)
 
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=[f"{resolved_settings.rate_limit_per_minute}/minute"],
-    )
+    limiter.reset()
+    limiter._default_limits = [
+        LimitGroup(
+            f"{resolved_settings.rate_limit_per_minute}/minute",
+            get_rate_limit_key,
+            None,
+            False,
+            None,
+            None,
+            None,
+            1,
+            False,
+        )
+    ]
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -95,14 +105,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.geocode_cache = {}
     app.state.plan_ai_cache = {}
     app.state.cpcb_breaker = CpcbCircuitBreaker()
-    app.state.locations_limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=["30/minute"],
-    )
-    app.state.ai_limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=["20/minute"],
-    )
 
     register_exception_handlers(app)
 

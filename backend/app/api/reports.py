@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlmodel import Session
 
 from app.api.errors import ApiStatusError
 from app.api.household import resolve_existing_household
+from app.api.rate_limit import limiter
 from app.db.models import Report
 from app.impact import service as impact_svc
 from app.reports.csv_export import build_csv
 from app.reports.pdf import build_pdf
 
 router = APIRouter()
-reports_limiter = Limiter(key_func=get_remote_address)
 
 
 def _validate_days(days: int) -> int:
@@ -29,7 +27,7 @@ def _validate_days(days: int) -> int:
 
 
 @router.post("/reports/pdf")
-@reports_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def post_report_pdf(request: Request, days: int = 7) -> Response:
     """Generate a PDF air-quality & CO2 impact report and persist metadata."""
     _validate_days(days)
@@ -56,7 +54,7 @@ async def post_report_pdf(request: Request, days: int = 7) -> Response:
 
 
 @router.post("/reports/csv")
-@reports_limiter.limit("10/minute")
+@limiter.limit("10/minute")
 async def post_report_csv(request: Request, days: int = 7) -> Response:
     """Generate an RFC 4180 CSV activity export with UTF-8 BOM and persist metadata."""
     _validate_days(days)
