@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.wrappers import LimitGroup
 from sqlmodel import Session
+from starlette.responses import Response as StarletteResponse
+from starlette.types import Scope
 
 from app.api.errors import register_exception_handlers
 from app.api.household import purge_expired_demo_households
@@ -139,7 +141,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     dist_dir = REPO_ROOT / "frontend" / "dist"
     assets_dir = dist_dir / "assets"
     if assets_dir.is_dir():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+
+        class _ImmutableStaticFiles(StaticFiles):
+            async def get_response(self, path: str, scope: Scope) -> StarletteResponse:
+                resp = await super().get_response(path, scope)
+                if resp.status_code == 200:
+                    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                return resp
+
+        app.mount(
+            "/assets", _ImmutableStaticFiles(directory=str(assets_dir)), name="frontend-assets"
+        )
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str) -> FileResponse:
@@ -162,7 +174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Frontend index.html not found.",
             )
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers={"Cache-Control": "no-cache"})
 
     return app
 

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: purvai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PURVAI_MODE
+        value: demo
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATA_GOV_IN_API_KEY
+        sync: false

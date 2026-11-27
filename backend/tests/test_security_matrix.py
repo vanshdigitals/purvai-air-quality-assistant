@@ -139,3 +139,23 @@ def test_logging_contains_no_sensitive_payloads(
     assert secret_act not in joined
     assert "28.6271" not in joined
     assert "77.3716" not in joined
+
+
+def test_demo_static_cache_headers_and_purge_timestamp(demo_client: TestClient) -> None:
+    """Demo mode sets no-cache on index.html, immutable on hashed /assets/*, and schedules purge."""
+    html_r = demo_client.get("/today")
+    if html_r.status_code == 200:
+        assert html_r.headers.get("cache-control") == "no-cache"
+
+    from app.config import REPO_ROOT
+
+    assets_dir = REPO_ROOT / "frontend" / "dist" / "assets"
+    if assets_dir.is_dir():
+        js_files = list(assets_dir.glob("*.js"))
+        if js_files:
+            asset_r = demo_client.get(f"/assets/{js_files[0].name}")
+            assert asset_r.status_code == 200
+            assert "max-age=31536000" in (asset_r.headers.get("cache-control") or "")
+            assert "immutable" in (asset_r.headers.get("cache-control") or "")
+
+    assert getattr(demo_client.app.state, "last_demo_purge_at", None) is not None  # type: ignore[union-attr]
